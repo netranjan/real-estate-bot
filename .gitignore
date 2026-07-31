@@ -24,6 +24,8 @@ Thumbs.db
 *.dump
 *.sql
 !schema.sql
+!db/setup.sql
+!db/views.sql
 
 # Misc
 coverage/
