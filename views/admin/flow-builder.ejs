@@ -274,8 +274,8 @@
                                                     <!-- Options / Buttons preview -->
                                                     <% let displayOpts=[]; if (step.options) { try { const
                                                       parsed=JSON.parse(step.options); if (Array.isArray(parsed))
-                                                      displayOpts=parsed; else if (parsed.mode) { // property_list
-                                                      config object — don't render as buttons } else if (typeof
+                                                      displayOpts=parsed; else if (parsed.mode) { // property_list config object — don't render as buttons
+                                                     } else if (typeof
                                                       parsed==='object' ) { displayOpts=Object.values(parsed).filter(v=>
                                                       typeof v === 'string');
                                                       }
@@ -342,7 +342,8 @@
                                       <% if (conn.condition) { %>
                                         <span
                                           class="font-medium text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded text-xs">"
-                                          <%= conn.condition %>"</span>
+                                          <%= conn.condition %>"
+                                        </span>
                                         <span class="text-slate-300">→</span>
                                         <% } %>
                                           <% if (conn.target_id) { %>
