@@ -10,52 +10,46 @@ async function execute(lead, config) {
   }
 
   const to = lead.whatsapp_number;
-  const { text, source_table, filter_by, header, footer, list_title, button_text } = config;
+  const { text, filter_mode, filter_conditions, header, footer, list_title, button_text } = config;
 
   if (!text) {
     throw new Error('show_list node missing "text" in config');
   }
 
   let items = [];
+  const mode = filter_mode || 'all';
+  const conditions = filter_conditions || [];
 
-  if (source_table === 'properties' && filter_by) {
-    // Dynamic property filtering based on lead answers
-    const answers = await db.getLeadAnswers(lead.lead_id);
-    const answersMap = {};
-    for (const a of answers) {
-      answersMap[a.field_name] = a.field_value;
-    }
+  // Get lead answers for variable substitution
+  const answers = await db.getLeadAnswers(lead.lead_id);
+  const answersMap = {};
+  for (const a of answers) {
+    answersMap[a.field_name] = a.field_value;
+  }
 
-    const properties = await propertyService.getMatchingProperties(
-      lead.client_id,
-      answersMap
-    );
-
-    items = properties.map((p) => ({
+  if (mode === 'filtered' && conditions.length > 0) {
+    // Apply user-defined filter rules
+    const filtered = await propertyService.getFilteredProperties(lead.client_id, conditions, answersMap);
+    items = filtered.map((p) => ({
       id: `PROPERTY_${p.property_id}`,
       title: p.property_name.slice(0, 24),
       description: `₹${(p.price_min / 100000).toFixed(1)}L - ₹${(p.price_max / 100000).toFixed(1)}L | ${p.possession_date ? new Date(p.possession_date).getFullYear() : 'Ready'}`,
     }));
-  } else if (source_table === 'property_visit_options') {
-    const propertyId = lead.context_data?.selected_property_id;
-    if (!propertyId) {
-      throw new Error('show_list for visit options requires selected_property_id in context');
-    }
-    const options = await propertyService.getAvailableSlots(propertyId);
-    items = options.map((o) => ({
-      id: `VISIT_${o.visit_option_id}`,
-      title: o.option_name.slice(0, 24),
-    }));
   } else {
-    // Generic list from config.items
-    items = config.items || [];
+    // Show all active properties
+    const allProps = await db.getPropertiesByClient(lead.client_id);
+    items = allProps.map((p) => ({
+      id: `PROPERTY_${p.property_id}`,
+      title: p.property_name.slice(0, 24),
+      description: `₹${(p.price_min / 100000).toFixed(1)}L - ₹${(p.price_max / 100000).toFixed(1)}L | ${p.possession_date ? new Date(p.possession_date).getFullYear() : 'Ready'}`,
+    }));
   }
 
   if (items.length === 0) {
     await send({
       phoneNumberId: client.meta_phone_number_id,
       accessToken: client.meta_access_token,
-      payload: textMessage(to, 'No matching items found.'),
+      payload: textMessage(to, 'Sorry, no properties match your criteria right now. Tap "Request Callback" and our agent will help you find the perfect home.'),
     });
     return { success: true, type: 'LIST_EMPTY' };
   }
@@ -69,14 +63,7 @@ async function execute(lead, config) {
     })),
   }];
 
-  const payload = listMessage(
-    to,
-    text,
-    button_text || 'View Options',
-    sections,
-    header,
-    footer
-  );
+  const payload = listMessage(to, text, button_text || 'View Options', sections, header, footer);
 
   await send({
     phoneNumberId: client.meta_phone_number_id,

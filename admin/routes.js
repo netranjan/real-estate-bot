@@ -9,7 +9,7 @@ const flowService = require('../services/flow-service');
 function requireAuth(req, res, next) {
   const key = req.query.key || req.headers['x-admin-key'] || req.body.admin_key;
   const adminKey = process.env.ADMIN_KEY || 'dev-secret-key';
-  
+
   if (process.env.NODE_ENV === 'development' && !process.env.ADMIN_KEY) {
     return next();
   }
@@ -25,8 +25,8 @@ router.use(requireAuth);
 router.use(async (req, res, next) => {
   try {
     res.locals.allClients = await clientService.listClients('');
-  } catch (e) { 
-    res.locals.allClients = []; 
+  } catch (e) {
+    res.locals.allClients = [];
   }
   next();
 });
@@ -56,7 +56,7 @@ function render(req, res, view, data) {
 
 router.get('/', async (req, res) => {
   const clientId = resolveClientId(req);
-  
+
   const leadsQ = await pool.query('SELECT COUNT(*) FROM leads WHERE client_id = $1', [clientId]);
   const propsQ = await pool.query('SELECT COUNT(*) FROM properties WHERE client_id = $1 AND active = TRUE', [clientId]);
   const cbQ = await pool.query(`
@@ -105,9 +105,9 @@ router.post('/properties', async (req, res) => {
          brochure_url, welcome_message, google_map_url, referral_code, active)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
       [clientId, property_name, price_min || null, price_max || null,
-       JSON.stringify(configuration_types ? configuration_types.split(',').map(s => s.trim()) : []),
-       possession_date || null, brochure_url || null, welcome_message || null,
-       google_map_url || null, referral_code || null, active === 'on' || active === 'true']
+        JSON.stringify(configuration_types ? configuration_types.split(',').map(s => s.trim()) : []),
+        possession_date || null, brochure_url || null, welcome_message || null,
+        google_map_url || null, referral_code || null, active === 'on' || active === 'true']
     );
     redirectWithQuery(res, req, '/admin/properties');
   } catch (err) {
@@ -131,10 +131,10 @@ router.post('/properties/:id/update', async (req, res) => {
         referral_code = $9, active = $10, updated_at = NOW()
        WHERE property_id = $11`,
       [property_name, price_min || null, price_max || null,
-       JSON.stringify(configuration_types ? configuration_types.split(',').map(s => s.trim()) : []),
-       possession_date || null, brochure_url || null, welcome_message || null,
-       google_map_url || null, referral_code || null,
-       active === 'on' || active === 'true', req.params.id]
+        JSON.stringify(configuration_types ? configuration_types.split(',').map(s => s.trim()) : []),
+        possession_date || null, brochure_url || null, welcome_message || null,
+        google_map_url || null, referral_code || null,
+        active === 'on' || active === 'true', req.params.id]
     );
     redirectWithQuery(res, req, '/admin/properties');
   } catch (err) {
@@ -166,12 +166,12 @@ router.get('/flows', async (req, res) => {
     steps = fullFlow.nodes;
   }
 
-  render(req, res, 'admin/flow-builder', { 
-    title: 'Flow Builder', 
-    flows, 
-    activeFlow, 
+  render(req, res, 'admin/flow-builder', {
+    title: 'Flow Builder',
+    flows,
+    activeFlow,
     steps,
-    clientId 
+    clientId
   });
 });
 
@@ -229,7 +229,6 @@ router.post('/flows/simulate', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 // Add new step
 router.post('/flows/steps', async (req, res) => {
   const clientId = resolveClientId(req);
@@ -237,7 +236,7 @@ router.post('/flows/steps', async (req, res) => {
   if (!flow) return res.status(400).send('No active flow');
 
   const { step_name, message_text, step_type, options } = req.body;
-  
+
   const typeMap = {
     'question': 'collect_input',
     'message': 'send_message',
@@ -247,15 +246,28 @@ router.post('/flows/steps', async (req, res) => {
     'book_visit': 'book_appointment',
     'callback': 'request_callback'
   };
-  
+
   const nodeType = typeMap[step_type] || 'send_message';
   const config = { text: message_text };
-  
+
   if (options && (step_type === 'question' || step_type === 'property_welcome')) {
     const lines = options.split('\n').map(l => l.trim()).filter(l => l);
     config.options = lines.map(line => ({ label: line, value: line }));
     if (step_type === 'property_welcome') {
       config.buttons = lines.map(line => ({ title: line, id: line.toUpperCase().replace(/\s+/g, '_') }));
+    }
+  }
+
+  // Property list config
+  if (step_type === 'property_list') {
+    config.source_table = 'properties';
+    try {
+      const parsed = JSON.parse(options || '{}');
+      config.filter_mode = parsed.mode || 'all';
+      config.filter_conditions = parsed.conditions || [];
+    } catch (e) {
+      config.filter_mode = 'all';
+      config.filter_conditions = [];
     }
   }
 
@@ -274,12 +286,12 @@ router.post('/flows/steps', async (req, res) => {
       config,
       orderIndex: 0
     });
-    
+
     if (!flow.start_node_id) {
       await db.updateFlow(flow.flow_id, { startNodeId: newNode.node_id });
       console.log('🎯 Auto-set start_node_id to', newNode.node_id);
     }
-    
+
     redirectWithQuery(res, req, '/admin/flows');
   } catch (err) {
     res.status(500).send('Error: ' + err.message);
@@ -289,20 +301,33 @@ router.post('/flows/steps', async (req, res) => {
 // Update step
 router.post('/flows/steps/:id/update', async (req, res) => {
   const { step_name, message_text, options } = req.body;
-  
+
   try {
     const node = await db.getNodeById(req.params.id);
     const config = node.config || {};
-    
+
     config.text = message_text;
     config.step_name = step_name;
-    
+
     if (options && (node.node_type === 'collect_input' || node.node_type === 'property_welcome')) {
       const lines = options.split('\n').map(l => l.trim()).filter(l => l);
       if (node.node_type === 'property_welcome') {
         config.buttons = lines.map(line => ({ title: line, id: line.toUpperCase().replace(/\s+/g, '_') }));
       } else {
         config.options = lines.map(line => ({ label: line, value: line }));
+      }
+    }
+
+    // Property list config on update
+    if (node.node_type === 'show_list') {
+      config.source_table = 'properties';
+      try {
+        const parsed = JSON.parse(options || '{}');
+        config.filter_mode = parsed.mode || 'all';
+        config.filter_conditions = parsed.conditions || [];
+      } catch (e) {
+        config.filter_mode = config.filter_mode || 'all';
+        config.filter_conditions = config.filter_conditions || [];
       }
     }
 
@@ -408,7 +433,6 @@ router.get('/leads/:id', async (req, res) => {
     timeline
   });
 });
-
 // ═══════════════════════════════════════
 // VISITS & CALLBACKS
 // ═══════════════════════════════════════

@@ -143,9 +143,10 @@
             to their default "next step" without waiting.</p>
         </div>
         <div>
-          <p class="font-semibold text-slate-800 mb-1">🎯 Dynamic Lists</p>
-          <p class="text-xs leading-relaxed">A <b>Show Properties</b> step with "Dynamic List" checked will
-            automatically fetch active properties from your database.</p>
+          <p class="font-semibold text-slate-800 mb-1">🎯 Smart Property Lists</p>
+          <p class="text-xs leading-relaxed">A <b>Show Properties</b> step can display <b>all</b> active projects or a
+            <b>filtered</b> list based on rules. Use filters with <code>{{variables}}</code> to personalize results per
+            lead.</p>
         </div>
       </div>
       <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
@@ -240,12 +241,15 @@
               }[step.node_type] || { icon: '🔹', label: step.node_type, color: 'slate', desc: '' };
               const opts = step.config.options || step.config.buttons || [];
               const hasOptions = opts.length > 0;
-              const isDynamicList = step.config.mode === 'dynamic_list';
+              const listMode = step.config.filter_mode || (step.config.mode === 'dynamic_list' ? 'all' : null);
+              const isFiltered = listMode === 'filtered';
               const connCount = step.connections ? step.connections.length : 0;
               const needsConnection = step.node_type !== 'request_callback' && step.node_type !== 'send_document';
               const isOrphan = needsConnection && connCount === 0;
               %>
-              <div class="relative step-card" data-node-id="<%= step.node_id %>" data-index="<%= index %>">
+              <div class="relative step-card" data-node-id="<%= step.node_id %>" data-index="<%= index %>"
+                data-filter-mode="<%= step.config.filter_mode || '' %>"
+                data-filter-conditions="<%= encodeURIComponent(JSON.stringify(step.config.filter_conditions || [])) %>">
                 <div
                   class="absolute -left-10 top-4 w-8 h-8 rounded-full bg-<%= typeMeta.color %>-500 border-4 border-white shadow flex items-center justify-center text-xs text-white font-bold cursor-move handle z-10">
                   <%= index + 1 %>
@@ -264,16 +268,23 @@
                       <span class="text-sm font-medium text-slate-700">
                         <%= step.node_name %>
                       </span>
-                      <% if (isDynamicList) { %><span
-                          class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-medium">Dynamic
-                          List</span>
-                        <% } %>
-                          <% if (isOrphan) { %>
-                            <span
-                              class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-medium flex items-center gap-1"
-                              data-tooltip="This step has no next step. The bot will stop here.">⚠️ Needs
-                              Connection</span>
+                      <% if (listMode) { %>
+                        <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-medium">
+                          <%= isFiltered ? '🔍 Filtered' : '🏠 All Properties' %>
+                        </span>
+                        <% if (isFiltered && step.config.filter_conditions) { %>
+                          <span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-medium">
+                            <%= step.config.filter_conditions.length %> rule<%= step.config.filter_conditions.length
+                                !==1 ? 's' : '' %>
+                          </span>
+                          <% } %>
                             <% } %>
+                              <% if (isOrphan) { %>
+                                <span
+                                  class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-medium flex items-center gap-1"
+                                  data-tooltip="This step has no next step. The bot will stop here.">⚠️ Needs
+                                  Connection</span>
+                                <% } %>
                     </div>
                     <div class="flex gap-1">
                       <button onclick="openEditWizard(<%= step.node_id %>)"
@@ -307,12 +318,13 @@
                           <% }) %>
                       </div>
                       <% } %>
-                        <% if (isDynamicList) { %>
+                        <% if (listMode) { %>
                           <div
                             class="mt-3 p-2 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700 flex items-center gap-2">
-                            <span>📋</span><span>Will show <b>
-                                <%= step.config.list_source || 'properties' %>
-                              </b> from database as a WhatsApp list</span>
+                            <span>📋</span><span>
+                              <%= isFiltered ? `Filtered list: ${step.config.filter_conditions.length} rule(s) applied`
+                                : 'Will show all active properties from database as a WhatsApp list' %>
+                            </span>
                           </div>
                           <% } %>
                             <div class="mt-4 pt-4 border-t border-slate-100">
@@ -594,14 +606,45 @@
           <p class="text-xs text-slate-400 mt-1">Each line becomes a button in WhatsApp. The user taps one to continue.
           </p>
         </div>
-        <div id="wz-dynamic-box" class="hidden">
-          <label class="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg cursor-pointer">
-            <input type="checkbox" id="wz-dynamic" class="w-4 h-4 text-green-600 rounded">
-            <div>
-              <span class="text-sm font-medium text-green-800">Use Dynamic List</span>
-              <span class="text-xs text-green-600 ml-2">Shows properties from database as a scrollable list</span>
+        <!-- Property List Mode Selector -->
+        <div id="wz-list-mode-box" class="hidden space-y-4">
+          <label class="block text-sm font-semibold text-slate-700">Which properties should the bot show?</label>
+          <div class="space-y-3">
+            <!-- Option 1: Show All -->
+            <div onclick="document.getElementById('wz-mode-all').checked=true; toggleFilterBuilder()"
+              class="cursor-pointer border-2 border-slate-200 rounded-xl p-4 hover:border-green-400 hover:bg-green-50 transition flex items-start gap-3">
+              <input type="radio" name="wz-list-mode" id="wz-mode-all" value="all" checked
+                class="mt-1 w-4 h-4 text-green-600" onclick="event.stopPropagation(); toggleFilterBuilder()">
+              <div>
+                <p class="text-sm font-semibold text-slate-800">🏠 Show ALL active properties</p>
+                <p class="text-xs text-slate-500 mt-0.5">Displays every property listed for this client. Best for fresh
+                  leads or when you want to show everything.</p>
+              </div>
             </div>
-          </label>
+            <!-- Option 2: Show Filtered -->
+            <div onclick="document.getElementById('wz-mode-filtered').checked=true; toggleFilterBuilder()"
+              class="cursor-pointer border-2 border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:bg-purple-50 transition flex items-start gap-3">
+              <input type="radio" name="wz-list-mode" id="wz-mode-filtered" value="filtered"
+                class="mt-1 w-4 h-4 text-purple-600" onclick="event.stopPropagation(); toggleFilterBuilder()">
+              <div class="flex-1">
+                <p class="text-sm font-semibold text-slate-800">🔍 Show FILTERED properties</p>
+                <p class="text-xs text-slate-500 mt-0.5">Only show properties that match rules you define below. The bot
+                  checks the lead's saved answers automatically.</p>
+                <!-- Visual Condition Builder -->
+                <div id="wz-filter-builder" class="hidden mt-3 space-y-2">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-slate-600">Filter Rules</span>
+                    <button type="button" onclick="wzAddFilterRow()"
+                      class="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 px-2 py-1 rounded font-medium">+
+                      Add Rule</button>
+                  </div>
+                  <div id="wz-filter-rows" class="space-y-2"></div>
+                  <p class="text-xs text-slate-400">The bot will only show properties that match <b>ALL</b> these rules.
+                    If the lead hasn't answered a question yet, that rule is skipped.</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="flex justify-between mt-4">
           <button onclick="wzGoTo(1)" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">←
@@ -733,38 +776,10 @@
   </div>
 </div>
 
-<!-- Simulation Panel -->
-<div id="sim-panel"
-  class="fixed inset-x-0 bottom-0 bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.15)] rounded-t-2xl transform translate-y-full transition-transform duration-300 z-50 max-h-[80vh] flex flex-col">
-  <div class="px-6 py-3 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-2xl">
-    <div>
-      <h4 class="font-bold text-slate-800 text-sm">🧪 Flow Simulator</h4>
-      <p class="text-xs text-slate-500">Test the conversation without sending real messages</p>
-    </div>
-    <button onclick="closeSimulation()"
-      class="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
-  </div>
-  <div class="flex-1 overflow-auto p-4 space-y-3" id="sim-chat">
-    <div class="text-center text-xs text-slate-400 py-4">Click "Start Simulation" to begin</div>
-  </div>
-  <div class="p-4 border-t border-slate-200 bg-slate-50">
-    <div class="flex gap-2">
-      <input type="text" id="sim-input" placeholder="Type a message or button tap..."
-        class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none"
-        onkeypress="if(event.key==='Enter')simSend()">
-      <button onclick="simSend()"
-        class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium">Send</button>
-      <button onclick="simReset()"
-        class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-2 rounded-lg text-sm">Reset</button>
-    </div>
-    <div class="flex gap-2 mt-2 flex-wrap" id="sim-quick-buttons"></div>
-  </div>
-</div>
-
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
 <script>
-<% if (activeFlow) { %>
+  <% if (activeFlow) { %>
 const sortable = Sortable.create(document.getElementById('sortable-steps'), {
   handle: '.handle', animation: 150,
   onEnd: async function (evt) {
@@ -832,20 +847,35 @@ const sortable = Sortable.create(document.getElementById('sortable-steps'), {
     const reverseMap = { 'Question': 'question', 'Message': 'message', 'Property List': 'property_list', 'Welcome': 'property_welcome', 'Brochure': 'brochure', 'Book Visit': 'book_visit', 'Callback': 'callback' };
     const code = reverseMap[label] || 'question';
     const deTypeMap = { 'question': 'collect_input', 'message': 'send_message', 'property_list': 'show_list', 'property_welcome': 'property_welcome', 'brochure': 'send_document', 'book_visit': 'book_appointment', 'callback': 'request_callback' };
-    const isDynamic = card.querySelector('.bg-green-100.text-green-700') !== null;
+
+    const savedFilterMode = card.dataset.filterMode || '';
+    const savedFilterConditions = JSON.parse(decodeURIComponent(card.dataset.filterConditions || '[]'));
 
     document.getElementById('modal-title').textContent = 'Edit Step';
     resetWizard(); wzSelectType(code);
     document.getElementById('wz-step-name').value = name;
     document.getElementById('wz-message').value = msg;
     document.getElementById('wz-options').value = opts;
-    document.getElementById('wz-dynamic').checked = isDynamic;
+
+    if (code === 'property_list') {
+      if (savedFilterMode === 'filtered') {
+        document.getElementById('wz-mode-filtered').checked = true;
+      } else {
+        document.getElementById('wz-mode-all').checked = true;
+      }
+      toggleFilterBuilder();
+      document.getElementById('wz-filter-rows').innerHTML = '';
+      if (Array.isArray(savedFilterConditions)) {
+        savedFilterConditions.forEach(c => wzAddFilterRow(c.field, c.operator, c.value));
+      }
+    }
+
     updateWzPreview();
 
     document.getElementById('de-name').value = name;
     document.getElementById('de-type').value = deTypeMap[code] || 'send_message';
     document.getElementById('de-message').value = msg;
-    document.getElementById('de-dynamic-list').checked = isDynamic;
+    document.getElementById('de-dynamic-list').checked = true;
     document.getElementById('de-options-list').innerHTML = '';
     document.getElementById('de-buttons-list').innerHTML = '';
     const optTexts = Array.from(optEls).map(el => el.textContent.trim()).filter(t => t);
@@ -881,9 +911,12 @@ const sortable = Sortable.create(document.getElementById('sortable-steps'), {
     document.getElementById('wz-step-2').classList.add('hidden');
     document.getElementById('wz-step-3').classList.add('hidden');
     document.getElementById('wz-message').value = '';
+    document.getElementById('wz-message').dataset.autofilled = 'true';
     document.getElementById('wz-options').value = '';
     document.getElementById('wz-step-name').value = '';
-    document.getElementById('wz-dynamic').checked = false;
+    document.getElementById('wz-mode-all').checked = true;
+    document.getElementById('wz-filter-builder').classList.add('hidden');
+    document.getElementById('wz-filter-rows').innerHTML = '';
     updateWzPreview();
   }
 
@@ -898,10 +931,17 @@ const sortable = Sortable.create(document.getElementById('sortable-steps'), {
     const hints = { 'question': 'Ask a question with button options', 'message': 'Just send text, no reply needed', 'property_list': 'Show projects from database', 'property_welcome': 'Show project details + action buttons', 'brochure': 'Send a PDF document', 'book_visit': 'Schedule a site visit', 'callback': 'Agent calls back' };
     document.getElementById('wz-type-hint').textContent = hints[code] || '';
     const optBox = document.getElementById('wz-options-box');
-    const dynBox = document.getElementById('wz-dynamic-box');
-    if (code === 'question' || code === 'property_welcome') { optBox.classList.remove('hidden'); dynBox.classList.add('hidden'); }
-    else if (code === 'property_list') { optBox.classList.add('hidden'); dynBox.classList.remove('hidden'); }
-    else { optBox.classList.add('hidden'); dynBox.classList.add('hidden'); }
+    const listModeBox = document.getElementById('wz-list-mode-box');
+    if (code === 'question' || code === 'property_welcome') {
+      optBox.classList.remove('hidden');
+      listModeBox.classList.add('hidden');
+    } else if (code === 'property_list') {
+      optBox.classList.add('hidden');
+      listModeBox.classList.remove('hidden');
+    } else {
+      optBox.classList.add('hidden');
+      listModeBox.classList.add('hidden');
+    }
     const examples = { 'question': 'What is your budget range?', 'message': 'Thanks for your interest! Here is what we offer.', 'property_list': 'Here are projects matching your requirements:', 'property_welcome': 'Welcome to our project! What would you like to do?', 'brochure': 'Here is the project brochure for your reference.', 'book_visit': 'Would you like to book a site visit?', 'callback': 'Our agent will call you back shortly.' };
     const msgInput = document.getElementById('wz-message');
     if (!msgInput.value || msgInput.dataset.autofilled === 'true') { msgInput.value = examples[code] || ''; msgInput.dataset.autofilled = 'true'; updateWzPreview(); }
@@ -915,8 +955,14 @@ const sortable = Sortable.create(document.getElementById('sortable-steps'), {
     if (step === 3) {
       document.getElementById('wz-summary-type').textContent = wzType;
       document.getElementById('wz-summary-msg').textContent = document.getElementById('wz-message').value || '-';
-      const opts = document.getElementById('wz-options').value.split('\n').filter(l => l.trim()).join(', ') || '-';
-      document.getElementById('wz-summary-opts').textContent = opts;
+      let optsText = '-';
+      if (wzType === 'property_list') {
+        const mode = document.querySelector('input[name="wz-list-mode"]:checked')?.value || 'all';
+        optsText = mode === 'filtered' ? 'Filtered list with rules' : 'Show all properties';
+      } else {
+        optsText = document.getElementById('wz-options').value.split('\n').filter(l => l.trim()).join(', ') || '-';
+      }
+      document.getElementById('wz-summary-opts').textContent = optsText;
     }
   }
 
@@ -932,16 +978,31 @@ const sortable = Sortable.create(document.getElementById('sortable-steps'), {
   }
   document.getElementById('wz-message').addEventListener('input', function () { this.dataset.autofilled = 'false'; updateWzPreview(); });
   document.getElementById('wz-options').addEventListener('input', updateWzPreview);
-
   function submitWizard() {
     document.getElementById('form-step-type').value = wzType;
     document.getElementById('form-step-name').value = document.getElementById('wz-step-name').value || 'Untitled Step';
     document.getElementById('form-message').value = document.getElementById('wz-message').value;
     let opts = document.getElementById('wz-options').value;
-    if (wzType === 'property_list' && document.getElementById('wz-dynamic').checked) opts = '__DYNAMIC_LIST__';
+
+    if (wzType === 'property_list') {
+      const mode = document.querySelector('input[name="wz-list-mode"]:checked')?.value || 'all';
+      const conditions = [];
+      if (mode === 'filtered') {
+        document.querySelectorAll('#wz-filter-rows .filter-row').forEach(row => {
+          const field = row.querySelector('.filter-field').value;
+          const op = row.querySelector('.filter-op').value;
+          const val = row.querySelector('.filter-value').value.trim();
+          if (field && val) conditions.push({ field, operator: op, value: val });
+        });
+      }
+      opts = JSON.stringify({ mode, conditions });
+    }
     document.getElementById('form-options').value = opts;
-    if (editingNodeId) { document.getElementById('modal-form').action = '/admin/flows/steps/' + editingNodeId + '/update?key=<%= req.query.key || '' %>&clientId=<%= clientId %>'; }
-    else { document.getElementById('modal-form').action = '/admin/flows/steps?key=<%= req.query.key || '' %>&clientId=<%= clientId %>'; }
+    if (editingNodeId) {
+      document.getElementById('modal-form').action = '/admin/flows/steps/' + editingNodeId + '/update?key=<%= req.query.key || '' %>&clientId=<%= clientId %>';
+    } else {
+      document.getElementById('modal-form').action = '/admin/flows/steps?key=<%= req.query.key || '' %>&clientId=<%= clientId %>';
+    }
     document.getElementById('modal-form').submit();
   }
 
@@ -1013,97 +1074,82 @@ const sortable = Sortable.create(document.getElementById('sortable-steps'), {
       const lines = [];
       document.querySelectorAll('.de-btn-row').forEach(row => { const title = row.querySelector('.de-btn-title').value.trim(); if (title) lines.push(title); });
       opts = lines.join('\n');
-    } else if (type === 'show_list' && document.getElementById('de-dynamic-list').checked) {
-      opts = '__DYNAMIC_LIST__';
+    } else if (type === 'show_list') {
+      const isDynamic = document.getElementById('de-dynamic-list').checked;
+      opts = JSON.stringify({ mode: isDynamic ? 'all' : 'manual', conditions: [] });
     }
     document.getElementById('form-step-type').value = typeMap[type] || 'message';
     document.getElementById('form-step-name').value = name;
     document.getElementById('form-message').value = msg;
     document.getElementById('form-options').value = opts;
     const form = document.getElementById('modal-form');
-    if (editingNodeId) { form.action = '/admin/flows/steps/' + editingNodeId + '/update?key=<%= req.query.key || '' %>&clientId=<%= clientId %>'; }
-    else { form.action = '/admin/flows/steps?key=<%= req.query.key || '' %>&clientId=<%= clientId %>'; }
+    if (editingNodeId) {
+      form.action = '/admin/flows/steps/' + editingNodeId + '/update?key=<%= req.query.key || '' %>&clientId=<%= clientId %>';
+    } else {
+      form.action = '/admin/flows/steps?key=<%= req.query.key || '' %>&clientId=<%= clientId %>';
+    }
     form.submit();
   }
 
-  let simState = { nodeId: null, context: {}, answers: {}, history: [] };
-  function openSimulation() { document.getElementById('sim-panel').classList.remove('translate-y-full'); simReset(); }
-  function closeSimulation() { document.getElementById('sim-panel').classList.add('translate-y-full'); }
-  function simReset() {
-    simState = { nodeId: <%= activeFlow? activeFlow.start_node_id || 'null' : 'null' %>, context: {}, answers: {}, history: [] };
-    document.getElementById('sim-chat').innerHTML = '<div class="text-center text-xs text-slate-400 py-4">Simulation started. The bot will show the first step.</div>';
-    document.getElementById('sim-quick-buttons').innerHTML = '';
-    simShowStep();
+  // ── NEW: Filter Builder Functions ──
+  function toggleFilterBuilder() {
+    const isFiltered = document.getElementById('wz-mode-filtered').checked;
+    document.getElementById('wz-filter-builder').classList.toggle('hidden', !isFiltered);
   }
-  async function simShowStep() {
-    if (!simState.nodeId) { addSimMessage('system', 'Flow ended (no start node configured)'); return; }
-    try {
-      const res = await fetch('/admin/flows/simulate?key=<%= req.query.key || '' %>&clientId=<%= clientId %>', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ flowId: <%= activeFlow? activeFlow.flow_id : 0 %>, startNodeId: simState.nodeId, inputs: [] })
-      });
-      const data = await res.json();
-      const step = data.log?.[0]; if (!step) return;
-      addSimMessage('bot', step.message);
-      const qb = document.getElementById('sim-quick-buttons'); qb.innerHTML = '';
-      if (step.options && step.options.length > 0) {
-        step.options.forEach(opt => {
-          const btn = document.createElement('button');
-          btn.className = 'px-3 py-1 bg-white border border-slate-300 rounded-full text-xs text-slate-700 hover:bg-purple-50 hover:border-purple-300 transition';
-          btn.textContent = opt.label;
-          btn.onclick = () => { document.getElementById('sim-input').value = opt.value; simSend(); };
-          qb.appendChild(btn);
-        });
-      }
-      simState.nodeId = step.nextNodeId || null;
-      if (step.done) addSimMessage('system', '✅ Conversation ended');
-    } catch (e) { addSimMessage('system', 'Error: ' + e.message); }
-  }
-  async function simSend() {
-    const input = document.getElementById('sim-input').value.trim(); if (!input) return;
-    addSimMessage('user', input);
-    document.getElementById('sim-input').value = '';
-    document.getElementById('sim-quick-buttons').innerHTML = '';
-    try {
-      const res = await fetch('/admin/flows/simulate?key=<%= req.query.key || '' %>&clientId=<%= clientId %>', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ flowId: <%= activeFlow? activeFlow.flow_id : 0 %>, startNodeId: simState.nodeId, inputs: [input] })
-      });
-      const data = await res.json();
-      const lastEntry = data.log?.[data.log.length - 1]; if (!lastEntry) return;
-      if (lastEntry.message && !lastEntry.userInput) addSimMessage('bot', lastEntry.message);
-      if (lastEntry.actions && lastEntry.actions.length > 0) {
-        lastEntry.actions.forEach(a => { addSimMessage('system', `⚡ ${a.type}${a.field ? ': ' + a.field + '=' + a.value : ''}`); });
-      }
-      simState.nodeId = lastEntry.nextNodeId || null;
-      simState.context = lastEntry.context || {};
-      simState.answers = lastEntry.answers || {};
-      if (lastEntry.done || !lastEntry.nextNodeId) { addSimMessage('system', '✅ Conversation ended'); }
-      else {
-        const nextStep = data.log.find(l => l.step === lastEntry.step && !l.userInput && l.nodeId === lastEntry.nextNodeId);
-        if (nextStep && nextStep.options) {
-          const qb = document.getElementById('sim-quick-buttons'); qb.innerHTML = '';
-          nextStep.options.forEach(opt => {
-            const btn = document.createElement('button');
-            btn.className = 'px-3 py-1 bg-white border border-slate-300 rounded-full text-xs text-slate-700 hover:bg-purple-50 hover:border-purple-300 transition';
-            btn.textContent = opt.label;
-            btn.onclick = () => { document.getElementById('sim-input').value = opt.value; simSend(); };
-            qb.appendChild(btn);
-          });
-        }
-      }
-    } catch (e) { addSimMessage('system', 'Error: ' + e.message); }
-  }
-  function addSimMessage(sender, text) {
-    const chat = document.getElementById('sim-chat');
+
+  function wzAddFilterRow(field, operator, value) {
+    const container = document.getElementById('wz-filter-rows');
     const div = document.createElement('div');
-    div.className = 'flex ' + (sender === 'user' ? 'justify-end' : sender === 'system' ? 'justify-center' : 'justify-start');
-    let inner = '';
-    if (sender === 'user') inner = `<div class="bg-green-600 text-white rounded-2xl rounded-tr-sm px-4 py-2 max-w-[70%] text-sm">${escapeHtml(text)}</div>`;
-    else if (sender === 'bot') inner = `<div class="bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-4 py-2 max-w-[70%] text-sm text-slate-800 shadow-sm">${escapeHtml(text)}</div>`;
-    else inner = `<div class="text-xs text-slate-400 bg-slate-100 px-3 py-1 rounded-full">${escapeHtml(text)}</div>`;
-    div.innerHTML = inner; chat.appendChild(div); chat.scrollTop = chat.scrollHeight;
+    div.className = 'flex gap-2 items-center bg-white border border-slate-200 rounded-lg p-2 filter-row';
+    div.innerHTML = `
+    <select class="filter-field px-2 py-1.5 border border-slate-300 rounded text-xs bg-white focus:ring-2 focus:ring-purple-500 outline-none" onchange="wzOnFieldChange(this)">
+      <option value="">Pick field...</option>
+      <option value="budget_range" ${field === 'budget_range' ? 'selected' : ''}>💰 Budget Range</option>
+      <option value="configuration" ${field === 'configuration' ? 'selected' : ''}>🏠 Configuration (2BHK/3BHK)</option>
+      <option value="possession" ${field === 'possession' ? 'selected' : ''}>📅 Possession Status</option>
+      <option value="property_name" ${field === 'property_name' ? 'selected' : ''}>🏢 Property Name</option>
+    </select>
+    <select class="filter-op px-2 py-1.5 border border-slate-300 rounded text-xs bg-white focus:ring-2 focus:ring-purple-500 outline-none w-28">
+      <option value="eq" ${operator === 'eq' ? 'selected' : ''}>equals</option>
+      <option value="contains" ${operator === 'contains' ? 'selected' : ''}>contains</option>
+      <option value="gt" ${operator === 'gt' ? 'selected' : ''}>greater than</option>
+      <option value="lt" ${operator === 'lt' ? 'selected' : ''}>less than</option>
+      <option value="gte" ${operator === 'gte' ? 'selected' : ''}>at least</option>
+      <option value="lte" ${operator === 'lte' ? 'selected' : ''}>at most</option>
+      <option value="in" ${operator === 'in' ? 'selected' : ''}>is one of</option>
+    </select>
+    <input type="text" class="filter-value flex-1 px-2 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-purple-500 outline-none" placeholder="Value or {{field_name}}" value="${value || ''}">
+    <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-red-500 px-1 text-xs">✕</button>
+  `;
+    container.appendChild(div);
+    wzOnFieldChange(div.querySelector('.filter-field'));
   }
+
+  function wzOnFieldChange(select) {
+    const row = select.closest('.filter-row');
+    const opSelect = row.querySelector('.filter-op');
+    const valInput = row.querySelector('.filter-value');
+    const field = select.value;
+
+    if (field === 'budget_range') {
+      opSelect.innerHTML = `<option value="between">is between</option><option value="gte">at least</option><option value="lte">at most</option>`;
+      valInput.placeholder = 'e.g. 1000000 or {{budget}}';
+    } else if (field === 'configuration') {
+      opSelect.innerHTML = `<option value="contains">contains</option><option value="eq">equals exactly</option><option value="in">is one of</option>`;
+      valInput.placeholder = 'e.g. 3BHK or 2BHK,3BHK';
+    } else if (field === 'possession') {
+      opSelect.innerHTML = `<option value="eq">equals</option><option value="gte">year or later</option><option value="lte">year or earlier</option>`;
+      valInput.placeholder = 'e.g. ready or 2026 or {{timeline}}';
+    } else {
+      opSelect.innerHTML = `<option value="eq">equals</option><option value="contains">contains</option><option value="gt">greater than</option><option value="lt">less than</option>`;
+      valInput.placeholder = 'Enter value or {{field_name}}';
+    }
+  }
+
+  // ── Simulation stubs (so the panel HTML doesn't break) ──
+  function openSimulation() { document.getElementById('sim-panel').classList.remove('translate-y-full'); }
+  function closeSimulation() { document.getElementById('sim-panel').classList.add('translate-y-full'); }
+
   function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeModal(); closeSimulation(); } });
 </script>
