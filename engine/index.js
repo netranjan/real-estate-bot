@@ -40,65 +40,58 @@ async function handleIncomingMessage(body) {
   console.log('📩 Incoming:', wa_id, '| Input:', user_input || '(text)');
 
   try {
-    // Determine client from phone_number_id (Meta sends this per webhook)
     let clientId = parseInt(process.env.DEFAULT_CLIENT_ID, 10) || 1;
     let client = null;
 
     if (phone_number_id) {
       client = await db.getClientByPhoneNumberId(phone_number_id);
-      if (client) {
-        clientId = client.client_id;
-      }
+      if (client) clientId = client.client_id;
     }
 
-    // Find or create lead
     let lead = await leadService.findOrCreateLead({
       whatsappNumber: wa_id,
       name: profile_name || null,
       clientId,
     });
 
-    // Handle referral (ad click with ref code) — auto-select property
     if (referral_ref && !lead.context_data?.selected_property_id) {
       const property = await db.getPropertyByReferralCode(referral_ref);
       if (property && property.client_id === clientId) {
         await leadService.saveToContext(lead.lead_id, 'selected_property_id', property.property_id);
         await leadService.saveToContext(lead.lead_id, 'selected_property_name', property.property_name);
-        console.log('🔗 Referral property selected:', property.property_name);
       }
     }
 
-    // Reload lead with fresh state
     lead = await db.getLeadById(lead.lead_id);
 
-    // If lead has no current node (shouldn't happen, but safety net)
-    if (!lead.current_node_id) {
-      const flow = await db.getActiveFlowForClient(clientId);
-      if (flow && flow.start_node_id) {
-        await db.updateLeadNode(lead.lead_id, flow.start_node_id);
-        lead = await db.getLeadById(lead.lead_id);
-      }
+    const flow = await db.getActiveFlowForClient(clientId);
+    if (!flow) {
+      console.error('❌ No active flow for client', clientId);
+      return;
     }
 
-    // If this is a brand new lead (just created), auto-start the flow
+    if (!lead.current_node_id && flow.start_node_id) {
+      await db.updateLeadNode(lead.lead_id, flow.start_node_id);
+      lead = await db.getLeadById(lead.lead_id);
+    }
+
     const historyCount = (await db.getLeadAnswers(lead.lead_id)).length;
-    const isFreshLead = historyCount === 0 && !user_input;
+    const isFreshLead = historyCount === 0 && lead.current_node_id === flow.start_node_id;
 
     if (isFreshLead) {
       const startNode = await db.getNodeById(lead.current_node_id);
       if (startNode) {
-        console.log('🚀 Auto-starting flow for new lead');
+        console.log('🚀 Auto-starting flow for new lead at node:', startNode.node_name);
         await stateMachine.executeAndChain(lead, startNode);
         return;
       }
     }
 
-    // Process the user's message through the state machine
     await stateMachine.processMessage(lead, user_input);
 
   } catch (error) {
     console.error('❌ Engine error:', error.message);
-    // Optionally send error fallback to user
+    console.error(error.stack);
   }
 }
 

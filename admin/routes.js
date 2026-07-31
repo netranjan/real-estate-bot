@@ -259,6 +259,10 @@ router.post('/flows/steps', async (req, res) => {
     }
   }
 
+  if (step_type === 'question') {
+    config.field = step_name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+  }
+
   const nodeCode = step_name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '') + '_' + Date.now();
 
   try {
@@ -271,7 +275,6 @@ router.post('/flows/steps', async (req, res) => {
       orderIndex: 0
     });
     
-    // If this is the first step, auto-set it as start node
     if (!flow.start_node_id) {
       await db.updateFlow(flow.flow_id, { startNodeId: newNode.node_id });
       console.log('🎯 Auto-set start_node_id to', newNode.node_id);
@@ -301,6 +304,10 @@ router.post('/flows/steps/:id/update', async (req, res) => {
       } else {
         config.options = lines.map(line => ({ label: line, value: line }));
       }
+    }
+
+    if (node.node_type === 'collect_input' && !config.field) {
+      config.field = step_name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
     }
 
     await db.updateNode(req.params.id, { nodeName: step_name, config });
