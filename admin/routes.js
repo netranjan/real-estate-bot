@@ -235,7 +235,7 @@ router.post('/flows/steps', async (req, res) => {
   const flow = await db.getActiveFlowForClient(clientId);
   if (!flow) return res.status(400).send('No active flow');
 
-  const { step_name, message_text, step_type, options } = req.body;
+  const { step_name, message_text, step_type, options, save_field } = req.body;
 
   const typeMap = {
     'question': 'collect_input',
@@ -258,21 +258,24 @@ router.post('/flows/steps', async (req, res) => {
     }
   }
 
-  // Property list config
+  // Property list config — NEW: parse match_dimensions from JSON
   if (step_type === 'property_list') {
     config.source_table = 'properties';
     try {
       const parsed = JSON.parse(options || '{}');
       config.filter_mode = parsed.mode || 'all';
-      config.filter_conditions = parsed.conditions || [];
+      config.match_dimensions = parsed.match_dimensions || [];
+      // Backward compat: keep filter_conditions if present
+      config.filter_conditions = parsed.filter_conditions || [];
     } catch (e) {
       config.filter_mode = 'all';
+      config.match_dimensions = [];
       config.filter_conditions = [];
     }
   }
 
   if (step_type === 'question') {
-    config.field = step_name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    config.field = save_field || step_name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
   }
 
   const nodeCode = step_name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '') + '_' + Date.now();
@@ -318,15 +321,17 @@ router.post('/flows/steps/:id/update', async (req, res) => {
       }
     }
 
-    // Property list config on update
+    // Property list config on update — NEW: parse match_dimensions
     if (node.node_type === 'show_list') {
       config.source_table = 'properties';
       try {
         const parsed = JSON.parse(options || '{}');
         config.filter_mode = parsed.mode || 'all';
-        config.filter_conditions = parsed.conditions || [];
+        config.match_dimensions = parsed.match_dimensions || [];
+        config.filter_conditions = parsed.filter_conditions || [];
       } catch (e) {
         config.filter_mode = config.filter_mode || 'all';
+        config.match_dimensions = config.match_dimensions || [];
         config.filter_conditions = config.filter_conditions || [];
       }
     }
@@ -433,6 +438,7 @@ router.get('/leads/:id', async (req, res) => {
     timeline
   });
 });
+
 // ═══════════════════════════════════════
 // VISITS & CALLBACKS
 // ═══════════════════════════════════════

@@ -10,31 +10,59 @@ async function execute(lead, config) {
   }
 
   const to = lead.whatsapp_number;
-  const { text, filter_mode, filter_conditions, header, footer, list_title, button_text } = config;
+  const { text, header, footer, list_title, button_text } = config;
 
   if (!text) {
     throw new Error('show_list node missing "text" in config');
   }
 
   let items = [];
-  const mode = filter_mode || 'all';
-  const conditions = filter_conditions || [];
 
-  // Get lead answers for variable substitution
+  // Get lead answers for smart filtering
   const answers = await db.getLeadAnswers(lead.lead_id);
   const answersMap = {};
   for (const a of answers) {
     answersMap[a.field_name] = a.field_value;
   }
 
-  if (mode === 'filtered' && conditions.length > 0) {
-    // Apply user-defined filter rules
-    const filtered = await propertyService.getFilteredProperties(lead.client_id, conditions, answersMap);
-    items = filtered.map((p) => ({
-      id: `PROPERTY_${p.property_id}`,
-      title: p.property_name.slice(0, 24),
-      description: `₹${(p.price_min / 100000).toFixed(1)}L - ₹${(p.price_max / 100000).toFixed(1)}L | ${p.possession_date ? new Date(p.possession_date).getFullYear() : 'Ready'}`,
-    }));
+  const mode = config.filter_mode || 'all';
+  const matchDimensions = config.match_dimensions || [];
+  const hasOldConditions = config.filter_conditions && config.filter_conditions.length > 0;
+
+  if (mode === 'filtered') {
+    if (matchDimensions.length > 0) {
+      // NEW: Smart auto-filter using lead answers + admin-selected dimensions
+      const filtered = await propertyService.getSmartFilteredProperties(
+        lead.client_id,
+        answersMap,
+        matchDimensions
+      );
+      items = filtered.map((p) => ({
+        id: `PROPERTY_${p.property_id}`,
+        title: p.property_name.slice(0, 24),
+        description: `₹${(p.price_min / 100000).toFixed(1)}L - ₹${(p.price_max / 100000).toFixed(1)}L | ${p.possession_date ? new Date(p.possession_date).getFullYear() : 'Ready'}`,
+      }));
+    } else if (hasOldConditions) {
+      // BACKWARD COMPAT: Old manual condition rules
+      const filtered = await propertyService.getFilteredProperties(
+        lead.client_id,
+        config.filter_conditions,
+        answersMap
+      );
+      items = filtered.map((p) => ({
+        id: `PROPERTY_${p.property_id}`,
+        title: p.property_name.slice(0, 24),
+        description: `₹${(p.price_min / 100000).toFixed(1)}L - ₹${(p.price_max / 100000).toFixed(1)}L | ${p.possession_date ? new Date(p.possession_date).getFullYear() : 'Ready'}`,
+      }));
+    } else {
+      // No dimensions or conditions set, show all
+      const allProps = await db.getPropertiesByClient(lead.client_id);
+      items = allProps.map((p) => ({
+        id: `PROPERTY_${p.property_id}`,
+        title: p.property_name.slice(0, 24),
+        description: `₹${(p.price_min / 100000).toFixed(1)}L - ₹${(p.price_max / 100000).toFixed(1)}L | ${p.possession_date ? new Date(p.possession_date).getFullYear() : 'Ready'}`,
+      }));
+    }
   } else {
     // Show all active properties
     const allProps = await db.getPropertiesByClient(lead.client_id);
