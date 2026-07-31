@@ -1,0 +1,222 @@
+<div class="space-y-6">
+  <!-- Header -->
+  <div class="flex justify-between items-center">
+    <div>
+      <p class="text-slate-600">Manage properties for this client. The <b>welcome message</b> is what users see immediately after selecting a property.</p>
+    </div>
+    <button onclick="toggleAddForm()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition">
+      + Add Property
+    </button>
+  </div>
+
+  <!-- Add Property Form -->
+  <div id="add-form" class="hidden bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <h3 class="font-bold text-slate-800 mb-4">Add New Property</h3>
+    <form action="/admin/properties?key=<%= req.query.key || '' %>&clientId=<%= clientId %>" method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <input type="hidden" name="key" value="<%= req.query.key || '' %>">
+      <input type="hidden" name="clientId" value="<%= clientId %>">
+      
+      <div class="md:col-span-2">
+        <label class="block text-sm font-medium text-slate-700 mb-1">Property Name</label>
+        <input type="text" name="property_name" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Price Min (₹)</label>
+        <input type="number" name="price_min" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Price Max (₹)</label>
+        <input type="number" name="price_max" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Configuration (comma separated)</label>
+        <input type="text" name="configuration_types" placeholder="2 BHK, 3 BHK" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Possession Date</label>
+        <input type="date" name="possession_date" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="block text-sm font-medium text-slate-700 mb-1">Welcome Message <span class="text-red-500">*</span></label>
+        <textarea name="welcome_message" rows="3" required placeholder="Welcome to our project! Premium homes..." class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
+        <p class="text-xs text-slate-500 mt-1">This is sent to the user immediately after they select this property.</p>
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="block text-sm font-medium text-slate-700 mb-1">Brochure URL</label>
+        <input type="url" name="brochure_url" placeholder="https://cdn.example.com/brochure.pdf" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="block text-sm font-medium text-slate-700 mb-1">Google Map URL</label>
+        <input type="url" name="google_map_url" placeholder="https://maps.google.com/..." class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Referral Code</label>
+        <input type="text" name="referral_code" placeholder="PROJ_01" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+      </div>
+
+      <div class="flex items-center gap-2">
+        <input type="checkbox" name="active" checked class="w-4 h-4 text-blue-600 rounded">
+        <label class="text-sm text-slate-700">Active (visible to users)</label>
+      </div>
+
+      <div class="md:col-span-2 flex justify-end gap-3 pt-2">
+        <button type="button" onclick="toggleAddForm()" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg text-sm font-medium">Save Property</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Properties Grid -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+    <% properties.forEach(prop => { 
+       let configs = [];
+       if (prop.configuration_types) {
+         if (Array.isArray(prop.configuration_types)) {
+           configs = prop.configuration_types;
+         } else if (typeof prop.configuration_types === 'string') {
+           try { configs = JSON.parse(prop.configuration_types); } catch(e) { configs = [prop.configuration_types]; }
+         }
+       }
+    %>
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden" id="prop-card-<%= prop.property_id %>">
+        
+        <!-- View Mode -->
+        <div id="prop-view-<%= prop.property_id %>">
+          <div class="h-24 bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center text-white text-3xl">
+            🏢
+          </div>
+          <div class="p-5">
+            <div class="flex justify-between items-start mb-2">
+              <h4 class="font-bold text-slate-800 text-lg"><%= prop.property_name %></h4>
+              <% if (prop.active) { %>
+                <span class="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded font-semibold">Active</span>
+              <% } else { %>
+                <span class="px-2 py-0.5 bg-slate-100 text-slate-500 text-xs rounded font-semibold">Inactive</span>
+              <% } %>
+            </div>
+            
+            <p class="text-sm text-slate-500 mb-3">
+              ₹<%= prop.price_min ? (prop.price_min/100000).toFixed(1) + 'L' : 'N/A' %> 
+              <% if (prop.price_max && prop.price_max !== prop.price_min) { %> - ₹<%= (prop.price_max/100000).toFixed(1) %>L <% } %>
+              • <%= configs.join(', ') %>
+              <% if (prop.possession_date) { %> • <%= new Date(prop.possession_date).toLocaleDateString('en-IN', {month:'short', year:'numeric'}) %><% } %>
+            </p>
+
+            <div class="p-3 bg-amber-50 rounded-lg border border-amber-200 mb-4">
+              <p class="text-xs font-semibold text-amber-800 mb-1">Welcome Message:</p>
+              <p class="text-xs text-amber-700 italic line-clamp-3"><%= prop.welcome_message || 'No welcome message set' %></p>
+            </div>
+
+            <div class="flex gap-2">
+              <button onclick="toggleEdit(<%= prop.property_id %>)" class="flex-1 text-sm bg-slate-100 hover:bg-slate-200 py-2 rounded-lg font-medium transition">Edit</button>
+              <form action="/admin/properties/<%= prop.property_id %>/delete?key=<%= req.query.key || '' %>&clientId=<%= clientId %>" method="POST" class="inline" onsubmit="return confirm('Delete this property?');">
+                <input type="hidden" name="key" value="<%= req.query.key || '' %>">
+                <input type="hidden" name="clientId" value="<%= clientId %>">
+                <button type="submit" class="px-3 py-2 bg-slate-100 hover:bg-red-100 text-red-600 rounded-lg transition">🗑️</button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Edit Mode -->
+        <div id="prop-edit-<%= prop.property_id %>" class="hidden p-5">
+          <h4 class="font-bold text-slate-800 mb-4">Edit <%= prop.property_name %></h4>
+          <form action="/admin/properties/<%= prop.property_id %>/update?key=<%= req.query.key || '' %>&clientId=<%= clientId %>" method="POST" class="space-y-3">
+            <input type="hidden" name="key" value="<%= req.query.key || '' %>">
+            <input type="hidden" name="clientId" value="<%= clientId %>">
+            
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Property Name</label>
+              <input type="text" name="property_name" value="<%= prop.property_name %>" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Price Min</label>
+                <input type="number" name="price_min" value="<%= prop.price_min || '' %>" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Price Max</label>
+                <input type="number" name="price_max" value="<%= prop.price_max || '' %>" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Configuration (comma separated)</label>
+              <input type="text" name="configuration_types" value="<%= configs.join(', ') %>" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Welcome Message</label>
+              <textarea name="welcome_message" rows="3" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"><%= prop.welcome_message || '' %></textarea>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Brochure URL</label>
+              <input type="url" name="brochure_url" value="<%= prop.brochure_url || '' %>" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Google Map URL</label>
+              <input type="url" name="google_map_url" value="<%= prop.google_map_url || '' %>" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Referral Code</label>
+              <input type="text" name="referral_code" value="<%= prop.referral_code || '' %>" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+            </div>
+
+            <div class="flex items-center gap-2">
+              <input type="checkbox" name="active" <%= prop.active ? 'checked' : '' %> class="w-4 h-4 text-blue-600 rounded">
+              <label class="text-xs text-slate-700">Active</label>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-2">
+              <button type="button" onclick="toggleEdit(<%= prop.property_id %>)" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+              <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-xs font-medium">Save Changes</button>
+            </div>
+          </form>
+        </div>
+
+      </div>
+    <% }) %>
+  </div>
+
+  <% if (properties.length === 0) { %>
+    <div class="text-center py-16">
+      <div class="text-4xl mb-3">🏘️</div>
+      <p class="text-slate-500 font-medium">No properties yet</p>
+      <p class="text-sm text-slate-400 mt-1">Add your first property to start receiving leads</p>
+    </div>
+  <% } %>
+</div>
+
+<script>
+function toggleAddForm() {
+  const form = document.getElementById('add-form');
+  form.classList.toggle('hidden');
+  if (!form.classList.contains('hidden')) {
+    form.scrollIntoView({ behavior: 'smooth' });
+  }
+}
+
+function toggleEdit(id) {
+  const view = document.getElementById('prop-view-' + id);
+  const edit = document.getElementById('prop-edit-' + id);
+  if (view.classList.contains('hidden')) {
+    view.classList.remove('hidden');
+    edit.classList.add('hidden');
+  } else {
+    view.classList.add('hidden');
+    edit.classList.remove('hidden');
+  }
+}
+</script>

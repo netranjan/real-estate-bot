@@ -1,0 +1,19 @@
+UPDATE clients 
+SET 
+  meta_waba_id = '2092175135009517',
+  meta_phone_number_id = '1211524668715452',
+  meta_access_token = 'EAAWsvFBWwK4BSElgyUMLpGypAN8ZCytrZCmvJyfbuBPqQIeHxS2M7URnDCmbBsgNom9fC5cOQcjQWyKlX0kQ6GPsIZCSckgSu57Oi2ab6LzeIHl9MiAWZAdPBfmfkJn2SQSTizlyqP5hSnXz453vtMMpOFuzPxxhjdueES4H4qTK0BTUeqewAjzXZCqWHAkyuOprwB6RRnHPSZAu2o0R0h4YpfMXkEfbiqDK20'
+WHERE client_id = 1;
+
+UPDATE clients 
+SET 
+  meta_waba_id = 'YOUR_WABA_ID_HERE',
+  meta_phone_number_id = 'YOUR_PHONE_NUMBER_ID_HERE',
+  meta_access_token = 'YOUR_PERMANENT_ACCESS_TOKEN_HERE'
+WHERE client_id = 1;
+
+
+
+# Meta WhatsApp Cloud API
+WHATSAPP_TOKEN=EAAWsvFBWwK4BSElgyUMLpGypAN8ZCytrZCmvJyfbuBPqQIeHxS2M7URnDCmbBsgNom9fC5cOQcjQWyKlX0kQ6GPsIZCSckgSu57Oi2ab6LzeIHl9MiAWZAdPBfmfkJn2SQSTizlyqP5hSnXz453vtMMpOFuzPxxhjdueES4H4qTK0BTUeqewAjzXZCqWHAkyuOprwB6RRnHPSZAu2o0R0h4YpfMXkEfbiqDK20
+PHONE_NUMBER_ID=1211524668715452

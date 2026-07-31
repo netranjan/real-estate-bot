@@ -1,0 +1,930 @@
+<div class="space-y-6">
+  <!-- Help Banner -->
+  <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+    <div class="flex items-start gap-3">
+      <span class="text-xl">💡</span>
+      <div>
+        <p class="text-sm font-medium text-blue-900">How flows work</p>
+        <p class="text-xs text-blue-700 mt-1 leading-relaxed">
+          The bot reads top-to-bottom. Each step sends one message. 
+          <b>Questions</b> wait for a button tap. <b>Messages</b> go to the next step immediately. 
+          Click <b>+ Add Step</b> to build, drag cards to reorder, or click <b>🧪 Test</b> to simulate.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div>
+      <h3 class="font-bold text-slate-800 text-lg">Conversation Flow</h3>
+      <% if (activeFlow) { %>
+        <p class="text-sm text-slate-500">
+          <%= activeFlow.flow_name %> v<%= activeFlow.flow_version %> • <%= steps.length %> step<%= steps.length !== 1 ? 's' : '' %>
+        </p>
+      <% } else { %>
+        <p class="text-sm text-slate-500">No active flow — create one below</p>
+      <% } %>
+    </div>
+    <div class="flex gap-2">
+      <% if (flows.length > 1) { %>
+        <select onchange="window.location.href='/admin/flows?key=<%= req.query.key || '' %>&clientId=<%= clientId %>&flowId='+this.value" class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-purple-500 outline-none">
+          <% flows.forEach(f => { %>
+            <option value="<%= f.flow_id %>" <%= f.is_active ? 'selected' : '' %>><%= f.flow_name %> <%= f.is_active ? '●' : '' %></option>
+          <% }) %>
+        </select>
+      <% } %>
+      <% if (activeFlow) { %>
+        <button onclick="openSimulation()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium text-sm">
+          🧪 Test
+        </button>
+        <button onclick="openAddWizard()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium text-sm">
+          + Add Step
+        </button>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- Create Flow Banner -->
+  <% if (!activeFlow) { %>
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center">
+      <div class="text-4xl mb-3">🔀</div>
+      <h4 class="font-bold text-slate-800 text-lg">No conversation flow yet</h4>
+      <p class="text-sm text-slate-500 mt-1 mb-4">Create a flow to start building the bot experience.</p>
+      <form action="/admin/flows?key=<%= req.query.key || '' %>&clientId=<%= clientId %>" method="POST" class="max-w-md mx-auto flex gap-3">
+        <input type="hidden" name="key" value="<%= req.query.key || '' %>">
+        <input type="hidden" name="clientId" value="<%= clientId %>">
+        <input type="text" name="flow_name" placeholder="Flow name (e.g. Main Sales Flow)" required class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 outline-none">
+        <input type="hidden" name="is_active" value="on">
+        <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg text-sm font-medium">Create Flow</button>
+      </form>
+    </div>
+  <% } %>
+
+  <!-- Flow Timeline -->
+  <% if (activeFlow) { %>
+  <div class="relative pl-8" id="flow-timeline">
+    <!-- Vertical line -->
+    <div class="absolute left-3 top-0 bottom-0 w-0.5 bg-slate-200"></div>
+
+    <!-- START -->
+    <div class="relative mb-6">
+      <div class="absolute -left-8 top-0 w-6 h-6 rounded-full bg-green-500 border-4 border-white shadow flex items-center justify-center text-[10px] text-white font-bold">S</div>
+      <div class="bg-green-50 border border-green-200 rounded-lg px-4 py-2 inline-block">
+        <span class="text-xs font-semibold text-green-800">START — User sends first message</span>
+      </div>
+    </div>
+
+    <!-- Draggable container -->
+    <div id="sortable-steps" class="space-y-6">
+      <% steps.forEach((step, index) => { 
+        const typeMeta = {
+          'collect_input':    { icon: '❓', label: 'Question',    color: 'purple', desc: 'User picks an option' },
+          'send_message':     { icon: '📝', label: 'Message',     color: 'blue',   desc: 'Bot sends text only' },
+          'show_list':        { icon: '🏠', label: 'Property List', color: 'green',  desc: 'Show matching projects' },
+          'property_welcome': { icon: '🏢', label: 'Welcome',     color: 'orange', desc: 'Project details + actions' },
+          'send_document':    { icon: '📄', label: 'Brochure',    color: 'amber',  desc: 'Send PDF file' },
+          'book_appointment': { icon: '📅', label: 'Book Visit',  color: 'indigo', desc: 'Schedule site visit' },
+          'request_callback': { icon: '📞', label: 'Callback',    color: 'rose',   desc: 'Agent calls back' }
+        }[step.node_type] || { icon: '🔹', label: step.node_type, color: 'slate', desc: '' };
+        
+        const opts = step.config.options || step.config.buttons || [];
+        const hasOptions = opts.length > 0;
+        const isDynamicList = step.config.mode === 'dynamic_list';
+      %>
+
+        <div class="relative step-card" data-node-id="<%= step.node_id %>" data-index="<%= index %>">
+          <div class="absolute -left-8 top-3 w-6 h-6 rounded-full bg-<%= typeMeta.color %>-500 border-4 border-white shadow flex items-center justify-center text-[10px] text-white font-bold cursor-move handle"><%= index + 1 %></div>
+          
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition">
+            <!-- Card Header -->
+            <div class="px-5 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <div class="flex items-center gap-2">
+                <span class="text-lg"><%= typeMeta.icon %></span>
+                <span class="text-xs font-semibold uppercase tracking-wider text-<%= typeMeta.color %>-700 bg-<%= typeMeta.color %>-100 px-2 py-0.5 rounded"><%= typeMeta.label %></span>
+                <span class="text-sm font-medium text-slate-700"><%= step.node_name %></span>
+                <% if (isDynamicList) { %><span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-medium">Dynamic List</span><% } %>
+              </div>
+              <div class="flex gap-1">
+                <button onclick="openEditWizard(<%= step.node_id %>)" class="text-xs bg-white border border-slate-200 hover:bg-slate-100 px-2 py-1 rounded text-slate-600">Edit</button>
+                <form action="/admin/flows/steps/<%= step.node_id %>/delete?key=<%= req.query.key || '' %>&clientId=<%= clientId %>" method="POST" class="inline" onsubmit="return confirm('Delete this step?');">
+                  <input type="hidden" name="key" value="<%= req.query.key || '' %>">
+                  <input type="hidden" name="clientId" value="<%= clientId %>">
+                  <button type="submit" class="text-xs bg-white border border-slate-200 hover:bg-red-50 hover:text-red-600 px-2 py-1 rounded text-slate-400">🗑</button>
+                </form>
+              </div>
+            </div>
+
+            <!-- Card Body -->
+            <div class="p-5">
+              <!-- Message Bubble -->
+              <div class="flex justify-start">
+                <div class="bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-3 max-w-lg">
+                  <p class="text-sm text-slate-800 whitespace-pre-wrap"><%= step.config.text || '(No message)' %></p>
+                </div>
+              </div>
+
+              <!-- Option Buttons Preview -->
+              <% if (hasOptions) { %>
+              <div class="flex flex-wrap gap-2 mt-3 ml-2">
+                <% opts.forEach(opt => { %>
+                  <span class="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-700 shadow-sm font-medium"><%= opt.label || opt.title || opt %></span>
+                <% }) %>
+              </div>
+              <% } %>
+
+              <!-- Dynamic List Badge -->
+              <% if (isDynamicList) { %>
+              <div class="mt-3 p-2 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700">
+                📋 Will show <%= step.config.list_source || 'properties' %> from database as a WhatsApp list
+              </div>
+              <% } %>
+
+              <!-- Connections -->
+              <div class="mt-4 pt-4 border-t border-slate-100">
+                <div class="flex items-center justify-between mb-2">
+                  <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Then what happens?</p>
+                  <button onclick="toggleQuickConnect(<%= step.node_id %>)" class="text-xs text-purple-600 hover:text-purple-800 font-medium">+ Quick Connect</button>
+                </div>
+                
+                <% if (step.connections && step.connections.length > 0) { %>
+                  <div class="space-y-2">
+                    <% step.connections.forEach(conn => { 
+                      const action = conn.conditionLogic || {};
+                      const actionLabel = action.action ? `[${action.action.replace('_', ' ')}]` : '';
+                    %>
+                      <div class="flex items-center gap-2 text-sm group">
+                        <span class="text-slate-400">→</span>
+                        <% if (conn.userInput) { %>
+                          <span class="px-2 py-0.5 bg-purple-50 border border-purple-100 rounded text-purple-700 text-xs font-medium">"<%= conn.userInput %>"</span>
+                        <% } else { %>
+                          <span class="px-2 py-0.5 bg-slate-50 border border-slate-100 rounded text-slate-500 text-xs">Always</span>
+                        <% } %>
+                        <span class="text-xs text-amber-600 font-medium"><%= actionLabel %></span>
+                        <span class="text-slate-400">→</span>
+                        <span class="font-medium text-slate-700"><%= conn.toNodeName %></span>
+                        <form action="/admin/flows/connections/<%= conn.edgeId %>/delete?key=<%= req.query.key || '' %>&clientId=<%= clientId %>" method="POST" class="inline opacity-0 group-hover:opacity-100 transition">
+                          <input type="hidden" name="key" value="<%= req.query.key || '' %>">
+                          <input type="hidden" name="clientId" value="<%= clientId %>">
+                          <button type="submit" class="text-xs text-red-400 hover:text-red-600 ml-1">✕</button>
+                        </form>
+                      </div>
+                    <% }) %>
+                  </div>
+                <% } else if (step.node_type !== 'request_callback' && step.node_type !== 'send_document') { %>
+                  <p class="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">⚠️ No next step connected.</p>
+                <% } else { %>
+                  <p class="text-xs text-slate-400 italic">End of flow — no next step needed</p>
+                <% } %>
+
+                <!-- Quick Connect Form (hidden) -->
+                <form id="qc-<%= step.node_id %>" action="/admin/flows/connections?key=<%= req.query.key || '' %>&clientId=<%= clientId %>" method="POST" class="hidden mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                  <input type="hidden" name="key" value="<%= req.query.key || '' %>">
+                  <input type="hidden" name="clientId" value="<%= clientId %>">
+                  <input type="hidden" name="from_step" value="<%= step.node_id %>">
+                  
+                  <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                    <% if (hasOptions) { %>
+                      <select name="user_choice" class="px-2 py-1.5 border border-slate-300 rounded text-xs bg-white">
+                        <option value="">Any option</option>
+                        <% opts.forEach(opt => { %>
+                          <option value="<%= opt.value || opt.id || opt.label || opt.title || opt %>"><%= opt.label || opt.title || opt %></option>
+                        <% }) %>
+                      </select>
+                    <% } else { %>
+                      <input type="hidden" name="user_choice" value="">
+                      <div class="text-xs text-slate-400 py-1.5">Always</div>
+                    <% } %>
+                    
+                    <select name="action_type" class="px-2 py-1.5 border border-slate-300 rounded text-xs bg-white" onchange="toggleActionField(this, <%= step.node_id %>)">
+                      <option value="none">Just navigate</option>
+                      <option value="save_answer">Save answer</option>
+                      <option value="select_property">Select property</option>
+                      <option value="book_visit">Book visit</option>
+                      <option value="request_callback">Request callback</option>
+                      <option value="score_lead">Score lead</option>
+                    </select>
+                    
+                    <input type="text" name="action_field" id="af-<%= step.node_id %>" placeholder="Field name" class="hidden px-2 py-1.5 border border-slate-300 rounded text-xs">
+                    
+                    <select name="to_step" required class="px-2 py-1.5 border border-slate-300 rounded text-xs bg-white">
+                      <option value="">Pick next step...</option>
+                      <% steps.forEach(s => { if (s.node_id !== step.node_id) { %>
+                        <option value="<%= s.node_id %>"><%= steps.indexOf(s) + 1 %>. <%= s.node_name %></option>
+                      <% } }) %>
+                    </select>
+                    
+                    <button type="submit" class="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded text-xs font-medium">Connect</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+
+    <!-- ADD STEP NODE -->
+    <div class="relative mt-6">
+      <div class="absolute -left-8 top-3 w-6 h-6 rounded-full bg-slate-200 border-4 border-white shadow flex items-center justify-center text-[10px] text-slate-500 font-bold">+</div>
+      <button onclick="openAddWizard()" class="w-full py-4 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 hover:border-purple-400 hover:text-purple-600 hover:bg-purple-50 transition font-medium text-sm">
+        + Add a new step
+      </button>
+    </div>
+  </div>
+  <% } %>
+</div>
+
+<!-- ==================== WIZARD / EDITOR MODAL ==================== -->
+<div id="step-modal" class="fixed inset-0 bg-black/50 hidden z-50 flex justify-end">
+  <div class="bg-white w-full max-w-3xl h-full overflow-auto shadow-2xl flex flex-col">
+    
+    <!-- Modal Header -->
+    <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+      <div class="flex items-center gap-3">
+        <h3 class="font-bold text-slate-800 text-lg" id="modal-title">Add Step</h3>
+        <button onclick="toggleMode()" id="mode-toggle" class="text-xs bg-white border border-slate-300 px-2 py-1 rounded hover:bg-slate-100 text-slate-600">Switch to Direct Editor</button>
+      </div>
+      <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
+    </div>
+
+    <!-- Wizard Mode -->
+    <div id="wizard-mode" class="flex-1 p-6 space-y-6">
+      
+      <!-- Step 1: Intent -->
+      <div id="wz-step-1">
+        <label class="block text-sm font-semibold text-slate-700 mb-3">1. What should this step do? <span class="text-slate-400 font-normal">Pick one</span></label>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <% const wzTypes = [
+            { code: 'question',    icon: '❓', title: 'Ask Question',    desc: 'Show buttons and wait for user to pick' },
+            { code: 'message',     icon: '📝', title: 'Send Message',    desc: 'Just send text, no reply needed' },
+            { code: 'property_list',    icon: '🏠', title: 'Show Properties', desc: 'Display projects from database' },
+            { code: 'property_welcome', icon: '🏢', title: 'Project Welcome', desc: 'Show project details + action buttons' },
+            { code: 'brochure',    icon: '📄', title: 'Send Brochure',   desc: 'Send a PDF document' },
+            { code: 'book_visit',  icon: '📅', title: 'Book Visit',      desc: 'Schedule a site visit' },
+            { code: 'callback',    icon: '📞', title: 'Request Callback',desc: 'Agent calls back' }
+          ]; %>
+          <% wzTypes.forEach(t => { %>
+            <div onclick="wzSelectType('<%= t.code %>')" data-wz-type="<%= t.code %>" class="wz-type-card cursor-pointer border-2 border-slate-200 rounded-xl p-4 hover:border-purple-400 hover:bg-purple-50 transition text-center">
+              <div class="text-2xl mb-2"><%= t.icon %></div>
+              <p class="text-sm font-semibold text-slate-800"><%= t.title %></p>
+              <p class="text-xs text-slate-500 mt-1 leading-tight"><%= t.desc %></p>
+            </div>
+          <% }) %>
+        </div>
+        <div class="flex justify-end mt-4">
+          <button onclick="wzGoTo(2)" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg text-sm font-medium">Next →</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Content -->
+      <div id="wz-step-2" class="hidden space-y-4">
+        <div class="flex items-center justify-between">
+          <label class="block text-sm font-semibold text-slate-700">2. What should the bot say?</label>
+          <span class="text-xs text-slate-400" id="wz-type-hint">Ask a question with button options</span>
+        </div>
+        
+        <textarea id="wz-message" rows="3" placeholder="Type the message here..." class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm"></textarea>
+        
+        <!-- WhatsApp Preview -->
+        <div class="bg-[#e5ddd5] rounded-2xl p-4 max-w-sm mx-auto">
+          <div class="bg-white rounded-lg rounded-tl-none px-3 py-2 shadow-sm max-w-[85%]">
+            <p class="text-sm text-slate-800" id="wz-preview-msg">Type above to see preview...</p>
+          </div>
+          <div class="flex flex-wrap gap-1.5 mt-2 max-w-[85%]" id="wz-preview-opts"></div>
+        </div>
+
+        <!-- Options -->
+        <div id="wz-options-box">
+          <label class="block text-sm font-semibold text-slate-700 mb-2">Button options <span class="text-slate-400 font-normal">(one per line, max 3 for buttons)</span></label>
+          <textarea id="wz-options" rows="3" placeholder="Buy for Self-Use&#10;Investment / Rent" class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm font-mono"></textarea>
+          <p class="text-xs text-slate-400 mt-1">Each line becomes a button in WhatsApp</p>
+        </div>
+
+        <!-- Dynamic List Toggle -->
+        <div id="wz-dynamic-box" class="hidden">
+          <label class="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg cursor-pointer">
+            <input type="checkbox" id="wz-dynamic" class="w-4 h-4 text-green-600 rounded">
+            <span class="text-sm font-medium text-green-800">Use Dynamic List</span>
+            <span class="text-xs text-green-600">Shows properties from database as a scrollable list</span>
+          </label>
+        </div>
+
+        <div class="flex justify-between mt-4">
+          <button onclick="wzGoTo(1)" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">← Back</button>
+          <button onclick="wzGoTo(3)" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg text-sm font-medium">Next →</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Name & Save -->
+      <div id="wz-step-3" class="hidden space-y-4">
+        <label class="block text-sm font-semibold text-slate-700">3. Name this step <span class="text-slate-400 font-normal">(for your reference)</span></label>
+        <input type="text" id="wz-step-name" placeholder="e.g. Ask Budget" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm">
+        
+        <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
+          <p class="text-xs font-semibold text-slate-600 mb-2">Summary</p>
+          <div class="text-sm text-slate-700 space-y-1">
+            <p>Type: <span id="wz-summary-type" class="font-medium">Question</span></p>
+            <p>Message: <span id="wz-summary-msg" class="font-medium text-slate-500">-</span></p>
+            <p>Options: <span id="wz-summary-opts" class="font-medium text-slate-500">-</span></p>
+          </div>
+        </div>
+
+        <div class="flex justify-between mt-4">
+          <button onclick="wzGoTo(2)" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">← Back</button>
+          <button onclick="submitWizard()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg text-sm font-medium">Save Step</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Direct Editor Mode -->
+    <!-- Direct Editor Mode -->
+    <div id="direct-mode" class="hidden flex-1 p-6 space-y-5 overflow-auto">
+      
+      <div class="bg-amber-50 border border-amber-200 rounded-lg p-3">
+        <p class="text-xs font-semibold text-amber-800">⚠️ Direct Editor — Advanced Mode</p>
+        <p class="text-xs text-amber-700 mt-1">You write raw JSON config here. Use the Wizard for guided setup.</p>
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">Step Name</label>
+        <input type="text" id="de-name" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm">
+      </div>
+      
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">Node Type</label>
+        <select id="de-type" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm bg-white">
+          <option value="collect_input">collect_input — Question with options</option>
+          <option value="send_message">send_message — Text only</option>
+          <option value="show_list">show_list — Property list</option>
+          <option value="property_welcome">property_welcome — Project welcome</option>
+          <option value="send_document">send_document — PDF</option>
+          <option value="book_appointment">book_appointment — Book visit</option>
+          <option value="request_callback">request_callback — Callback</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">Message</label>
+        <textarea id="de-message" rows="2" class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm"></textarea>
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <label class="block text-sm font-semibold text-slate-700">Config JSON</label>
+          <button onclick="insertConfigTemplate()" class="text-xs text-purple-600 hover:text-purple-800 font-medium">Insert Template</button>
+        </div>
+        <textarea id="de-config" rows="10" class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm font-mono text-xs"></textarea>
+        
+        <!-- Config Help -->
+        <div class="mt-2 space-y-2">
+          <p class="text-xs font-semibold text-slate-600">Common config keys:</p>
+          <div class="grid grid-cols-1 gap-2 text-xs">
+            <div class="p-2 bg-slate-50 rounded border border-slate-200">
+              <code class="text-purple-700 font-semibold">text</code> — The message sent to user
+            </div>
+            <div class="p-2 bg-slate-50 rounded border border-slate-200">
+              <code class="text-purple-700 font-semibold">options</code> — Array of <code>{"label":"...","value":"..."}</code> (max 3 for WhatsApp buttons)
+            </div>
+            <div class="p-2 bg-slate-50 rounded border border-slate-200">
+              <code class="text-purple-700 font-semibold">buttons</code> — Array of <code>{"title":"...","id":"..."}</code> (for property welcome)
+            </div>
+            <div class="p-2 bg-slate-50 rounded border border-slate-200">
+              <code class="text-purple-700 font-semibold">mode: "dynamic_list"</code> — Shows properties from DB as a scrollable list
+            </div>
+            <div class="p-2 bg-slate-50 rounded border border-slate-200">
+              <code class="text-purple-700 font-semibold">list_source: "properties"</code> — Which table to pull from
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end">
+        <button onclick="submitDirect()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg text-sm font-medium">Save Step</button>
+      </div>
+    </div>
+
+    <!-- Hidden Form -->
+    <form id="modal-form" action="/admin/flows/steps?key=<%= req.query.key || '' %>&clientId=<%= clientId %>" method="POST" class="hidden">
+      <input type="hidden" name="key" value="<%= req.query.key || '' %>">
+      <input type="hidden" name="clientId" value="<%= clientId %>">
+      <input type="hidden" name="step_type" id="form-step-type">
+      <input type="hidden" name="step_name" id="form-step-name">
+      <textarea name="message_text" id="form-message"></textarea>
+      <textarea name="options" id="form-options"></textarea>
+    </form>
+  </div>
+</div>
+
+<!-- ==================== SIMULATION PANEL ==================== -->
+<div id="sim-panel" class="fixed inset-x-0 bottom-0 bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.15)] rounded-t-2xl transform translate-y-full transition-transform duration-300 z-50 max-h-[80vh] flex flex-col">
+  <div class="px-6 py-3 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-2xl">
+    <div>
+      <h4 class="font-bold text-slate-800 text-sm">🧪 Flow Simulator</h4>
+      <p class="text-xs text-slate-500">Test the conversation without sending real messages</p>
+    </div>
+    <button onclick="closeSimulation()" class="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
+  </div>
+  
+  <div class="flex-1 overflow-auto p-4 space-y-3" id="sim-chat">
+    <div class="text-center text-xs text-slate-400 py-4">Click "Start Simulation" to begin</div>
+  </div>
+  
+  <div class="p-4 border-t border-slate-200 bg-slate-50">
+    <div class="flex gap-2">
+      <input type="text" id="sim-input" placeholder="Type a message or button tap..." class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none" onkeypress="if(event.key==='Enter')simSend()">
+      <button onclick="simSend()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium">Send</button>
+      <button onclick="simReset()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-2 rounded-lg text-sm">Reset</button>
+    </div>
+    <div class="flex gap-2 mt-2 flex-wrap" id="sim-quick-buttons"></div>
+  </div>
+</div>
+
+<!-- SortableJS for drag-drop -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
+<script>
+// ── Drag & Drop ──
+<% if (activeFlow) { %>
+const sortable = Sortable.create(document.getElementById('sortable-steps'), {
+  handle: '.handle',
+  animation: 150,
+  onEnd: async function(evt) {
+    const nodeIds = Array.from(document.querySelectorAll('.step-card')).map(el => el.dataset.nodeId);
+    try {
+      await fetch('/admin/flows/reorder?key=<%= req.query.key || '' %>&clientId=<%= clientId %>', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ flowId: <%= activeFlow.flow_id %>, nodeIds })
+      });
+      window.location.reload();
+    } catch(e) {
+      alert('Failed to save order');
+    }
+  }
+});
+<% } %>
+
+// ── Quick Connect Toggle ──
+function toggleQuickConnect(nodeId) {
+  const el = document.getElementById('qc-' + nodeId);
+  el.classList.toggle('hidden');
+}
+
+function toggleActionField(select, nodeId) {
+  const field = document.getElementById('af-' + nodeId);
+  if (select.value === 'save_answer' || select.value === 'score_lead') {
+    field.classList.remove('hidden');
+    field.placeholder = select.value === 'save_answer' ? 'Field name (e.g. budget)' : 'Score number';
+  } else {
+    field.classList.add('hidden');
+  }
+}
+
+// ── Modal Control ──
+let currentMode = 'wizard'; // 'wizard' | 'direct'
+let wzType = 'question';
+let editingNodeId = null;
+
+function openAddWizard() {
+  editingNodeId = null;
+  currentMode = 'wizard';
+  document.getElementById('modal-title').textContent = 'Add Step';
+  document.getElementById('mode-toggle').textContent = 'Switch to Direct Editor';
+  resetWizard();
+  showMode('wizard');
+  document.getElementById('step-modal').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function openEditWizard(nodeId) {
+  editingNodeId = nodeId;
+  const card = document.querySelector(`.step-card[data-node-id="${nodeId}"]`);
+  if (!card) return;
+  
+  const name = card.querySelector('.font-medium.text-slate-700')?.textContent?.trim() || '';
+  const msg = card.querySelector('.whitespace-pre-wrap')?.textContent?.trim() || '';
+  const optEls = card.querySelectorAll('.rounded-lg.text-xs.text-slate-700.shadow-sm');
+  const opts = Array.from(optEls).map(el => el.textContent.trim()).join('\n');
+  
+  // Detect type from badge
+  const label = card.querySelector('.uppercase')?.textContent?.trim();
+  const reverseMap = { 'Question': 'question', 'Message': 'message', 'Property List': 'property_list', 'Welcome': 'property_welcome', 'Brochure': 'brochure', 'Book Visit': 'book_visit', 'Callback': 'callback' };
+  const code = reverseMap[label] || 'question';
+  
+  document.getElementById('modal-title').textContent = 'Edit Step';
+  resetWizard();
+  wzSelectType(code);
+  document.getElementById('wz-step-name').value = name;
+  document.getElementById('wz-message').value = msg;
+  document.getElementById('wz-options').value = opts;
+  updateWzPreview();
+  
+  // For edit, we use direct mode form action
+  showMode('wizard');
+  document.getElementById('step-modal').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  document.getElementById('step-modal').classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+function toggleMode() {
+  currentMode = currentMode === 'wizard' ? 'direct' : 'wizard';
+  document.getElementById('mode-toggle').textContent = currentMode === 'wizard' ? 'Switch to Direct Editor' : 'Switch to Wizard';
+  showMode(currentMode);
+}
+
+function showMode(mode) {
+  document.getElementById('wizard-mode').classList.toggle('hidden', mode !== 'wizard');
+  document.getElementById('direct-mode').classList.toggle('hidden', mode !== 'direct');
+}
+
+// ── Wizard Logic ──
+function resetWizard() {
+  wzType = 'question';
+  document.querySelectorAll('.wz-type-card').forEach(c => {
+    c.classList.remove('border-purple-500', 'bg-purple-50', 'ring-2', 'ring-purple-200');
+    c.classList.add('border-slate-200');
+  });
+  document.getElementById('wz-step-1').classList.remove('hidden');
+  document.getElementById('wz-step-2').classList.add('hidden');
+  document.getElementById('wz-step-3').classList.add('hidden');
+  document.getElementById('wz-message').value = '';
+  document.getElementById('wz-options').value = '';
+  document.getElementById('wz-step-name').value = '';
+  document.getElementById('wz-dynamic').checked = false;
+  updateWzPreview();
+}
+
+function wzSelectType(code) {
+  wzType = code;
+  document.querySelectorAll('.wz-type-card').forEach(c => {
+    c.classList.remove('border-purple-500', 'bg-purple-50', 'ring-2', 'ring-purple-200');
+    c.classList.add('border-slate-200');
+  });
+  const selected = document.querySelector(`.wz-type-card[data-wz-type="${code}"]`);
+  if (selected) {
+    selected.classList.remove('border-slate-200');
+    selected.classList.add('border-purple-500', 'bg-purple-50', 'ring-2', 'ring-purple-200');
+  }
+  
+  const hints = {
+    'question': 'Ask a question with button options',
+    'message': 'Just send text, no reply needed',
+    'property_list': 'Show projects from database',
+    'property_welcome': 'Show project details + action buttons',
+    'brochure': 'Send a PDF document',
+    'book_visit': 'Schedule a site visit',
+    'callback': 'Agent calls back'
+  };
+  document.getElementById('wz-type-hint').textContent = hints[code] || '';
+  
+  // Show/hide options and dynamic
+  const optBox = document.getElementById('wz-options-box');
+  const dynBox = document.getElementById('wz-dynamic-box');
+  if (code === 'question' || code === 'property_welcome') {
+    optBox.classList.remove('hidden');
+    dynBox.classList.add('hidden');
+  } else if (code === 'property_list') {
+    optBox.classList.add('hidden');
+    dynBox.classList.remove('hidden');
+  } else {
+    optBox.classList.add('hidden');
+    dynBox.classList.add('hidden');
+  }
+  
+  // Auto-fill example
+  const examples = {
+    'question': 'What is your budget range?',
+    'message': 'Thanks for your interest! Here is what we offer.',
+    'property_list': 'Here are projects matching your requirements:',
+    'property_welcome': 'Welcome to our project! What would you like to do?',
+    'brochure': 'Here is the project brochure for your reference.',
+    'book_visit': 'Would you like to book a site visit?',
+    'callback': 'Our agent will call you back shortly.'
+  };
+  const msgInput = document.getElementById('wz-message');
+  if (!msgInput.value || msgInput.dataset.autofilled === 'true') {
+    msgInput.value = examples[code] || '';
+    msgInput.dataset.autofilled = 'true';
+    updateWzPreview();
+  }
+}
+
+function wzGoTo(step) {
+  document.getElementById('wz-step-1').classList.add('hidden');
+  document.getElementById('wz-step-2').classList.add('hidden');
+  document.getElementById('wz-step-3').classList.add('hidden');
+  document.getElementById('wz-step-' + step).classList.remove('hidden');
+  
+  if (step === 3) {
+    document.getElementById('wz-summary-type').textContent = wzType;
+    document.getElementById('wz-summary-msg').textContent = document.getElementById('wz-message').value || '-';
+    const opts = document.getElementById('wz-options').value.split('\n').filter(l => l.trim()).join(', ') || '-';
+    document.getElementById('wz-summary-opts').textContent = opts;
+  }
+}
+
+function updateWzPreview() {
+  const msg = document.getElementById('wz-message').value;
+  document.getElementById('wz-preview-msg').textContent = msg || 'Type above to see preview...';
+  
+  const opts = (document.getElementById('wz-options').value || '').split('\n').map(l => l.trim()).filter(l => l);
+  const container = document.getElementById('wz-preview-opts');
+  container.innerHTML = '';
+  
+  if ((wzType === 'question' || wzType === 'property_welcome') && opts.length > 0) {
+    opts.forEach(opt => {
+      const btn = document.createElement('span');
+      btn.className = 'px-3 py-1 bg-white border border-slate-200 rounded text-xs text-slate-700 shadow-sm';
+      btn.textContent = opt;
+      container.appendChild(btn);
+    });
+  }
+}
+
+document.getElementById('wz-message').addEventListener('input', function() {
+  this.dataset.autofilled = 'false';
+  updateWzPreview();
+});
+document.getElementById('wz-options').addEventListener('input', updateWzPreview);
+
+function submitWizard() {
+  document.getElementById('form-step-type').value = wzType;
+  document.getElementById('form-step-name').value = document.getElementById('wz-step-name').value || 'Untitled Step';
+  document.getElementById('form-message').value = document.getElementById('wz-message').value;
+  
+  let opts = document.getElementById('wz-options').value;
+  if (wzType === 'property_list' && document.getElementById('wz-dynamic').checked) {
+    opts = '__DYNAMIC_LIST__';
+  }
+  document.getElementById('form-options').value = opts;
+  
+  if (editingNodeId) {
+    document.getElementById('modal-form').action = '/admin/flows/steps/' + editingNodeId + '/update?key=<%= req.query.key || '' %>&clientId=<%= clientId %>';
+  } else {
+    document.getElementById('modal-form').action = '/admin/flows/steps?key=<%= req.query.key || '' %>&clientId=<%= clientId %>';
+  }
+  
+  document.getElementById('modal-form').submit();
+}
+
+// ── Direct Editor ──
+function submitDirect() {
+  const name = document.getElementById('de-name').value;
+  const type = document.getElementById('de-type').value;
+  const msg = document.getElementById('de-message').value;
+  let config = {};
+  try {
+    config = JSON.parse(document.getElementById('de-config').value || '{}');
+  } catch(e) {}
+  
+  config.text = msg;
+  
+  // Build form and submit
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = editingNodeId 
+    ? '/admin/flows/steps/' + editingNodeId + '/update?key=<%= req.query.key || '' %>&clientId=<%= clientId %>'
+    : '/admin/flows/steps?key=<%= req.query.key || '' %>&clientId=<%= clientId %>';
+  
+  const fields = {
+    key: '<%= req.query.key || '' %>',
+    clientId: '<%= clientId %>',
+    step_type: type === 'collect_input' ? 'question' : type === 'send_message' ? 'message' : type === 'show_list' ? 'property_list' : type === 'property_welcome' ? 'property_welcome' : type === 'send_document' ? 'brochure' : type === 'book_appointment' ? 'book_visit' : 'callback',
+    step_name: name || 'Untitled',
+    message_text: msg,
+    options: JSON.stringify(config)
+  };
+  
+  for (const [k, v] of Object.entries(fields)) {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = k;
+    input.value = v;
+    form.appendChild(input);
+  }
+  
+  document.body.appendChild(form);
+  form.submit();
+}
+
+// ── Simulation ──
+let simState = { nodeId: null, context: {}, answers: {}, history: [] };
+
+function openSimulation() {
+  document.getElementById('sim-panel').classList.remove('translate-y-full');
+  simReset();
+}
+
+function closeSimulation() {
+  document.getElementById('sim-panel').classList.add('translate-y-full');
+}
+
+function simReset() {
+  simState = { 
+    nodeId: <%= activeFlow ? activeFlow.start_node_id || 'null' : 'null' %>, 
+    context: {}, 
+    answers: {}, 
+    history: [] 
+  };
+  document.getElementById('sim-chat').innerHTML = '<div class="text-center text-xs text-slate-400 py-4">Simulation started. The bot will show the first step.</div>';
+  document.getElementById('sim-quick-buttons').innerHTML = '';
+  simShowStep();
+}
+
+async function simShowStep() {
+  if (!simState.nodeId) {
+    addSimMessage('system', 'Flow ended (no start node configured)');
+    return;
+  }
+  
+  try {
+    const res = await fetch('/admin/flows/simulate?key=<%= req.query.key || '' %>&clientId=<%= clientId %>', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        flowId: <%= activeFlow ? activeFlow.flow_id : 0 %>,
+        startNodeId: simState.nodeId,
+        inputs: []
+      })
+    });
+    const data = await res.json();
+    const step = data.log?.[0];
+    if (!step) return;
+    
+    addSimMessage('bot', step.message);
+    
+    // Show options as quick buttons
+    const qb = document.getElementById('sim-quick-buttons');
+    qb.innerHTML = '';
+    if (step.options && step.options.length > 0) {
+      step.options.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = 'px-3 py-1 bg-white border border-slate-300 rounded-full text-xs text-slate-700 hover:bg-purple-50 hover:border-purple-300 transition';
+        btn.textContent = opt.label;
+        btn.onclick = () => {
+          document.getElementById('sim-input').value = opt.value;
+          simSend();
+        };
+        qb.appendChild(btn);
+      });
+    }
+    
+    simState.nodeId = step.nextNodeId || null;
+    if (step.done) {
+      addSimMessage('system', '✅ Conversation ended');
+    }
+  } catch(e) {
+    addSimMessage('system', 'Error: ' + e.message);
+  }
+}
+
+async function simSend() {
+  const input = document.getElementById('sim-input').value.trim();
+  if (!input) return;
+  
+  addSimMessage('user', input);
+  document.getElementById('sim-input').value = '';
+  document.getElementById('sim-quick-buttons').innerHTML = '';
+  
+  try {
+    const res = await fetch('/admin/flows/simulate?key=<%= req.query.key || '' %>&clientId=<%= clientId %>', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        flowId: <%= activeFlow ? activeFlow.flow_id : 0 %>,
+        startNodeId: simState.nodeId,
+        inputs: [input]
+      })
+    });
+    const data = await res.json();
+    const lastEntry = data.log?.[data.log.length - 1];
+    if (!lastEntry) return;
+    
+    if (lastEntry.message && !lastEntry.userInput) {
+      addSimMessage('bot', lastEntry.message);
+    }
+    
+    if (lastEntry.actions && lastEntry.actions.length > 0) {
+      lastEntry.actions.forEach(a => {
+        addSimMessage('system', `⚡ ${a.type}${a.field ? ': ' + a.field + '=' + a.value : ''}`);
+      });
+    }
+    
+    simState.nodeId = lastEntry.nextNodeId || null;
+    simState.context = lastEntry.context || {};
+    simState.answers = lastEntry.answers || {};
+    
+    if (lastEntry.done || !lastEntry.nextNodeId) {
+      addSimMessage('system', '✅ Conversation ended');
+    } else {
+      // Show next step options
+      const nextStep = data.log.find(l => l.step === lastEntry.step && !l.userInput && l.nodeId === lastEntry.nextNodeId);
+      if (nextStep && nextStep.options) {
+        const qb = document.getElementById('sim-quick-buttons');
+        qb.innerHTML = '';
+        nextStep.options.forEach(opt => {
+          const btn = document.createElement('button');
+          btn.className = 'px-3 py-1 bg-white border border-slate-300 rounded-full text-xs text-slate-700 hover:bg-purple-50 hover:border-purple-300 transition';
+          btn.textContent = opt.label;
+          btn.onclick = () => {
+            document.getElementById('sim-input').value = opt.value;
+            simSend();
+          };
+          qb.appendChild(btn);
+        });
+      }
+    }
+  } catch(e) {
+    addSimMessage('system', 'Error: ' + e.message);
+  }
+}
+
+function addSimMessage(sender, text) {
+  const chat = document.getElementById('sim-chat');
+  const div = document.createElement('div');
+  div.className = 'flex ' + (sender === 'user' ? 'justify-end' : sender === 'system' ? 'justify-center' : 'justify-start');
+  
+  let inner = '';
+  if (sender === 'user') {
+    inner = `<div class="bg-green-600 text-white rounded-2xl rounded-tr-sm px-4 py-2 max-w-[70%] text-sm">${escapeHtml(text)}</div>`;
+  } else if (sender === 'bot') {
+    inner = `<div class="bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-4 py-2 max-w-[70%] text-sm text-slate-800 shadow-sm">${escapeHtml(text)}</div>`;
+  } else {
+    inner = `<div class="text-xs text-slate-400 bg-slate-100 px-3 py-1 rounded-full">${escapeHtml(text)}</div>`;
+  }
+  
+  div.innerHTML = inner;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeModal();
+    closeSimulation();
+  }
+});
+
+function insertConfigTemplate() {
+  const type = document.getElementById('de-type').value;
+  const msg = document.getElementById('de-message').value || 'Hello!';
+  let template = {};
+  
+  switch(type) {
+    case 'send_message':
+      template = { text: msg };
+      break;
+    case 'collect_input':
+      template = {
+        text: msg,
+        options: [
+          { label: "Option 1", value: "opt1" },
+          { label: "Option 2", value: "opt2" }
+        ]
+      };
+      break;
+    case 'property_welcome':
+      template = {
+        text: msg,
+        buttons: [
+          { title: "Book Visit", id: "BOOK_VISIT" },
+          { title: "Get Brochure", id: "BROCHURE" },
+          { title: "Callback", id: "CALLBACK" }
+        ]
+      };
+      break;
+    case 'show_list':
+      template = {
+        text: msg,
+        mode: "dynamic_list",
+        list_source: "properties"
+      };
+      break;
+    case 'send_document':
+      template = { text: msg, document_url: "https://example.com/brochure.pdf" };
+      break;
+    case 'book_appointment':
+      template = { text: msg };
+      break;
+    case 'request_callback':
+      template = { text: msg };
+      break;
+    default:
+      template = { text: msg };
+  }
+  
+  document.getElementById('de-config').value = JSON.stringify(template, null, 2);
+}
+</script>

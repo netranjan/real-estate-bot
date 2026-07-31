@@ -1,0 +1,117 @@
+<div class="space-y-6">
+  <!-- Search & Filter -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+    <form method="GET" class="flex flex-col sm:flex-row gap-3">
+      <input type="hidden" name="key" value="<%= req.query.key || '' %>">
+      <input type="hidden" name="clientId" value="<%= clientId %>">
+      
+      <div class="flex-1">
+        <input type="text" name="search" value="<%= search || '' %>" placeholder="Search by name, phone, or lead ID..." 
+               class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+      </div>
+      
+      <select name="stage" class="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+        <option value="">All Stages</option>
+        <option value="New Lead" <%= stage === 'New Lead' ? 'selected' : '' %>>New Lead</option>
+        <option value="AI Qualified" <%= stage === 'AI Qualified' ? 'selected' : '' %>>AI Qualified</option>
+        <option value="Site Visit Booked" <%= stage === 'Site Visit Booked' ? 'selected' : '' %>>Site Visit Booked</option>
+        <option value="Callback Requested" <%= stage === 'Callback Requested' ? 'selected' : '' %>>Callback Requested</option>
+        <option value="Lost" <%= stage === 'Lost' ? 'selected' : '' %>>Lost</option>
+      </select>
+      
+      <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium text-sm">Search</button>
+      
+      <% if (search || stage) { %>
+        <a href="/admin/leads?key=<%= req.query.key || '' %>&clientId=<%= clientId %>" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm text-center">Clear</a>
+      <% } %>
+    </form>
+  </div>
+
+  <!-- Leads Table -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 border-b">
+          <tr>
+            <th class="text-left px-6 py-3 font-semibold text-slate-600">Lead ID</th>
+            <th class="text-left px-6 py-3 font-semibold text-slate-600">Name</th>
+            <th class="text-left px-6 py-3 font-semibold text-slate-600">Phone</th>
+            <th class="text-left px-6 py-3 font-semibold text-slate-600">Requirement</th>
+            <th class="text-left px-6 py-3 font-semibold text-slate-600">Config</th>
+            <th class="text-left px-6 py-3 font-semibold text-slate-600">Budget</th>
+            <th class="text-left px-6 py-3 font-semibold text-slate-600">Stage</th>
+            <th class="text-left px-6 py-3 font-semibold text-slate-600">Score</th>
+            <th class="text-left px-6 py-3 font-semibold text-slate-600">Last Contact</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% leads.forEach(lead => { 
+            const stageColors = {
+              'New Lead': 'bg-slate-100 text-slate-700',
+              'AI Qualified': 'bg-blue-100 text-blue-700',
+              'Site Visit Booked': 'bg-purple-100 text-purple-700',
+              'Callback Requested': 'bg-amber-100 text-amber-700',
+              'Lost': 'bg-red-100 text-red-700'
+            };
+            const stageClass = stageColors[lead.current_pipeline_stage] || 'bg-slate-100 text-slate-700';
+            
+            let lastContact = '-';
+            if (lead.latest_contact_date) {
+              try {
+                lastContact = new Date(lead.latest_contact_date).toLocaleString('en-IN', {
+                  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                });
+              } catch(e) { lastContact = String(lead.latest_contact_date).slice(0, 16); }
+            }
+          %>
+            <tr class="border-b hover:bg-slate-50 transition">
+              <td class="px-6 py-4">
+                <a href="/admin/leads/<%= lead.lead_id %>?key=<%= req.query.key || '' %>&clientId=<%= clientId %>" class="font-mono text-xs text-blue-600 hover:underline font-medium">
+                  <%= lead.lead_display_id || ('LEAD-' + lead.lead_id) %>
+                </a>
+              </td>
+              <td class="px-6 py-4 font-medium text-slate-800"><%= lead.contact_name || 'Unknown' %></td>
+              <td class="px-6 py-4 text-slate-600 font-mono text-xs"><%= lead.whatsapp_number || '-' %></td>
+              <td class="px-6 py-4">
+                <% if (lead.requirement_type) { %>
+                  <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs"><%= lead.requirement_type %></span>
+                <% } else { %>
+                  <span class="text-slate-400">-</span>
+                <% } %>
+              </td>
+              <td class="px-6 py-4">
+                <% if (lead.configuration) { %>
+                  <span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs"><%= lead.configuration %></span>
+                <% } else { %>
+                  <span class="text-slate-400">-</span>
+                <% } %>
+              </td>
+              <td class="px-6 py-4 text-slate-600"><%= lead.budget_range || '-' %></td>
+              <td class="px-6 py-4">
+                <span class="px-2 py-1 rounded text-xs font-semibold <%= stageClass %>">
+                  <%= lead.current_pipeline_stage || 'New Lead' %>
+                </span>
+              </td>
+              <td class="px-6 py-4">
+                <% if (lead.current_ai_score > 0) { %>
+                  <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-bold"><%= lead.current_ai_score %></span>
+                <% } else { %>
+                  <span class="text-slate-400">-</span>
+                <% } %>
+              </td>
+              <td class="px-6 py-4 text-slate-500 text-xs"><%= lastContact %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+
+    <% if (leads.length === 0) { %>
+      <div class="text-center py-16">
+        <div class="text-4xl mb-3">👥</div>
+        <p class="text-slate-500 font-medium">No leads found</p>
+        <p class="text-sm text-slate-400 mt-1">Leads will appear here when users message the bot</p>
+      </div>
+    <% } %>
+  </div>
+</div>
