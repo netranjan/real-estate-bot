@@ -4,16 +4,15 @@ const pool = require('../db/pool');
 const db = require('../db/queries');
 const clientService = require('../services/client-service');
 const flowService = require('../services/flow-service');
+const propertyService = require('../services/property-service');
 const { requireLogin, requireRole } = require('../middleware/auth');
 
 // ── Session‑based authentication ──
 router.use(requireLogin);
-
-// Only Super Admin can access client management
 router.use('/clients', requireRole('super_admin'));
 router.use('/clients/:id', requireRole('super_admin'));
 
-// ── Middleware: make client list available to all views ──
+// ── Make client list available to all views ──
 router.use(async (req, res, next) => {
   try {
     res.locals.allClients = await clientService.listClients('');
@@ -39,6 +38,47 @@ function redirectWithQuery(res, req, path) {
 
 function render(req, res, view, data) {
   res.render(view, { ...data, req });
+}
+
+// Helper to parse price from request (preset or custom)
+function resolvePriceFromBody(body) {
+  const priceMode = body.price_mode || 'preset';
+  let priceMin = null, priceMax = null;
+
+  if (priceMode === 'preset' && body.price_preset) {
+    const range = propertyService.parseBudgetRange(body.price_preset);
+    priceMin = range.min;
+    priceMax = range.max;
+  } else if (priceMode === 'custom') {
+    priceMin = body.price_min_custom ? parseFloat(body.price_min_custom) : null;
+    priceMax = body.price_max_custom ? parseFloat(body.price_max_custom) : null;
+    // Ensure min <= max
+    if (priceMin !== null && priceMax !== null && priceMin > priceMax) {
+      [priceMin, priceMax] = [priceMax, priceMin];
+    }
+  }
+
+  return { priceMin, priceMax };
+}
+
+// Helper to upsert assets for a property
+async function syncPropertyAssets(propertyId, assetTypes, assetUrls, assetNames) {
+  // Remove existing assets
+  await pool.query('DELETE FROM media_assets WHERE property_id = $1', [propertyId]);
+  // Insert new ones
+  const types = Array.isArray(assetTypes) ? assetTypes : (assetTypes ? [assetTypes] : []);
+  const urls  = Array.isArray(assetUrls) ? assetUrls : (assetUrls ? [assetUrls] : []);
+  const names = Array.isArray(assetNames) ? assetNames : (assetNames ? [assetNames] : []);
+
+  for (let i = 0; i < types.length; i++) {
+    if (types[i] && urls[i]) {
+      await pool.query(
+        `INSERT INTO media_assets (property_id, asset_type, asset_url, asset_name)
+         VALUES ($1, $2, $3, $4)`,
+        [propertyId, types[i], urls[i], names[i] || null]
+      );
+    }
+  }
 }
 
 // ═══════════════════════════════════════
@@ -70,6 +110,14 @@ router.get('/', async (req, res) => {
 router.get('/properties', async (req, res) => {
   const clientId = resolveClientId(req);
   const properties = await db.getPropertiesByClient(clientId);
+  // Attach assets to each property
+  for (let prop of properties) {
+    const assets = await pool.query(
+      'SELECT * FROM media_assets WHERE property_id = $1 ORDER BY created_at',
+      [prop.property_id]
+    );
+    prop.assets = assets.rows;
+  }
   render(req, res, 'admin/properties', { title: 'Properties', properties, clientId });
 });
 
@@ -78,41 +126,69 @@ router.get('/properties/:id', async (req, res) => {
   const property = await db.getPropertyById(req.params.id);
   if (!property) return res.status(404).send('Property not found');
   const slots = await db.getVisitOptionsForProperty(req.params.id);
+  const assets = await pool.query(
+    'SELECT * FROM media_assets WHERE property_id = $1 ORDER BY created_at',
+    [req.params.id]
+  );
   const clientId = property.client_id;
   render(req, res, 'admin/property-detail', {
     title: property.property_name,
     property,
     slots,
+    assets: assets.rows,
     clientId
   });
 });
 
 router.post('/properties', async (req, res) => {
   const clientId = resolveClientId(req);
-  const { property_name, price_min, price_max, configuration_types, possession_date, brochure_url, welcome_message, google_map_url, referral_code, active } = req.body;
+  const {
+    property_name, configuration_types, possession_date,
+    welcome_message, google_map_url, referral_code, active
+  } = req.body;
+
+  const { priceMin, priceMax } = resolvePriceFromBody(req.body);
+
   try {
-    await pool.query(
-      `INSERT INTO properties (client_id, property_name, price_min, price_max, configuration_types, possession_date, brochure_url, welcome_message, google_map_url, referral_code, active)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-      [clientId, property_name, price_min || null, price_max || null,
+    const result = await pool.query(
+      `INSERT INTO properties (client_id, property_name, price_min, price_max, configuration_types,
+       possession_date, welcome_message, google_map_url, referral_code, active)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING property_id`,
+      [clientId, property_name, priceMin, priceMax,
         JSON.stringify(configuration_types ? configuration_types.split(',').map(s => s.trim()) : []),
-        possession_date || null, brochure_url || null, welcome_message || null,
+        possession_date || null, welcome_message || null,
         google_map_url || null, referral_code || null, active === 'on' || active === 'true']
     );
+    const propertyId = result.rows[0].property_id;
+
+    // Sync assets
+    await syncPropertyAssets(propertyId, req.body['asset_type'], req.body['asset_url'], req.body['asset_name']);
+
     redirectWithQuery(res, req, '/admin/properties');
   } catch (err) { res.status(500).send('Error: ' + err.message); }
 });
 
 router.post('/properties/:id/update', async (req, res) => {
-  const { property_name, price_min, price_max, configuration_types, possession_date, brochure_url, welcome_message, google_map_url, referral_code, active } = req.body;
+  const { property_name, configuration_types, possession_date,
+          welcome_message, google_map_url, referral_code, active } = req.body;
+
+  const { priceMin, priceMax } = resolvePriceFromBody(req.body);
+
   try {
     await pool.query(
-      `UPDATE properties SET property_name=$1, price_min=$2, price_max=$3, configuration_types=$4, possession_date=$5, brochure_url=$6, welcome_message=$7, google_map_url=$8, referral_code=$9, active=$10, updated_at=NOW() WHERE property_id=$11`,
-      [property_name, price_min || null, price_max || null,
+      `UPDATE properties SET property_name=$1, price_min=$2, price_max=$3, configuration_types=$4,
+       possession_date=$5, welcome_message=$6, google_map_url=$7, referral_code=$8, active=$9, updated_at=NOW()
+       WHERE property_id=$10`,
+      [property_name, priceMin, priceMax,
         JSON.stringify(configuration_types ? configuration_types.split(',').map(s => s.trim()) : []),
-        possession_date || null, brochure_url || null, welcome_message || null,
-        google_map_url || null, referral_code || null, active === 'on' || active === 'true', req.params.id]
+        possession_date || null, welcome_message || null,
+        google_map_url || null, referral_code || null,
+        active === 'on' || active === 'true', req.params.id]
     );
+
+    // Sync assets
+    await syncPropertyAssets(req.params.id, req.body['asset_type'], req.body['asset_url'], req.body['asset_name']);
+
     redirectWithQuery(res, req, '/admin/properties');
   } catch (err) { res.status(500).send('Error: ' + err.message); }
 });

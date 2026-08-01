@@ -1,72 +1,156 @@
+<%
+// Helper functions for preset price matching
+function isCustomPrice(prop) {
+  if (!prop.price_min && !prop.price_max) return false;
+  const presets = {
+    '₹85 L – ₹1.0 Cr': { min: 8500000, max: 10000000 },
+    '₹1.0 Cr – ₹1.2 Cr': { min: 10000000, max: 12000000 },
+    '₹1.2 Cr – ₹1.5 Cr': { min: 12000000, max: 15000000 },
+    'Above ₹1.5 Cr': { min: 15000000, max: 999999999 }
+  };
+  for (let p in presets) {
+    if (prop.price_min == presets[p].min && prop.price_max == presets[p].max) return false;
+  }
+  return true;
+}
+
+function selectedPreset(prop, preset) {
+  const presets = {
+    '₹85 L – ₹1.0 Cr': { min: 8500000, max: 10000000 },
+    '₹1.0 Cr – ₹1.2 Cr': { min: 10000000, max: 12000000 },
+    '₹1.2 Cr – ₹1.5 Cr': { min: 12000000, max: 15000000 },
+    'Above ₹1.5 Cr': { min: 15000000, max: 999999999 }
+  };
+  const p = presets[preset];
+  return p && prop.price_min == p.min && prop.price_max == p.max;
+}
+
+// Generate price options from ₹1 Lac to ₹1 Cr with ₹1.5 Lac step
+const priceDropdownOptions = [];
+for (let v = 100000; v <= 10000000; v += 150000) {
+  priceDropdownOptions.push(v);
+}
+function formatPriceOption(price) {
+  return '₹' + (price / 100000).toFixed(2) + ' L';  // e.g., ₹1.00 L, ₹2.50 L
+}
+%>
+
 <div class="space-y-6">
   <!-- Header -->
   <div class="flex justify-between items-center">
     <div>
-      <p class="text-slate-600">Manage properties for this client. The <b>welcome message</b> is what users see immediately after selecting a property.</p>
+      <p class="text-slate-600">
+        Manage properties for this client. The <b>welcome message</b> is what users see immediately after selecting a property.
+      </p>
     </div>
     <button onclick="toggleAddForm()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition">
       + Add Property
     </button>
   </div>
 
-  <!-- Add Property Form -->
+  <!-- Add Property Form (collapsible) -->
   <div id="add-form" class="hidden bg-white rounded-xl shadow-sm border border-slate-200 p-6">
     <h3 class="font-bold text-slate-800 mb-4">Add New Property</h3>
-    <form action="/admin/properties?clientId=<%= clientId %>" method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <form action="/admin/properties?clientId=<%= clientId %>" method="POST" class="space-y-4">
       <input type="hidden" name="clientId" value="<%= clientId %>">
 
-      <div class="md:col-span-2">
-        <label class="block text-sm font-medium text-slate-700 mb-1">Property Name</label>
-        <input type="text" name="property_name" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
-      </div>
-
+      <!-- Property Name -->
       <div>
-        <label class="block text-sm font-medium text-slate-700 mb-1">Price Min (₹)</label>
-        <input type="number" name="price_min" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+        <label class="block text-sm font-medium text-slate-700 mb-1">Property Name *</label>
+        <input type="text" name="property_name" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
       </div>
 
+      <!-- Price Section -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Price Mode</label>
+          <select id="add-price-mode" name="price_mode" onchange="toggleAddPriceFields()" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+            <option value="preset">Preset Range</option>
+            <option value="custom">Custom Range</option>
+          </select>
+        </div>
+        <div id="add-price-preset-group">
+          <label class="block text-sm font-medium text-slate-700 mb-1">Preset Range</label>
+          <select name="price_preset" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+            <option value="">-- Select --</option>
+            <option value="₹85 L – ₹1.0 Cr">₹85 L – ₹1.0 Cr</option>
+            <option value="₹1.0 Cr – ₹1.2 Cr">₹1.0 Cr – ₹1.2 Cr</option>
+            <option value="₹1.2 Cr – ₹1.5 Cr">₹1.2 Cr – ₹1.5 Cr</option>
+            <option value="Above ₹1.5 Cr">Above ₹1.5 Cr</option>
+          </select>
+        </div>
+        <div id="add-price-custom-group" class="hidden md:col-span-2 grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Min Price</label>
+            <select name="price_min_custom" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+              <option value="">-- Select --</option>
+              <% priceDropdownOptions.forEach(val => { %>
+                <option value="<%= val %>"><%= formatPriceOption(val) %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Max Price</label>
+            <select name="price_max_custom" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+              <option value="">-- Select --</option>
+              <% priceDropdownOptions.forEach(val => { %>
+                <option value="<%= val %>"><%= formatPriceOption(val) %></option>
+              <% }) %>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Configuration & Possession -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Configurations (comma separated)</label>
+          <input type="text" name="configuration_types" placeholder="2 BHK, 3 BHK" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Possession Date</label>
+          <input type="date" name="possession_date" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+        </div>
+      </div>
+
+      <!-- Welcome Message -->
       <div>
-        <label class="block text-sm font-medium text-slate-700 mb-1">Price Max (₹)</label>
-        <input type="number" name="price_max" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-      </div>
-
-      <div>
-        <label class="block text-sm font-medium text-slate-700 mb-1">Configuration (comma separated)</label>
-        <input type="text" name="configuration_types" placeholder="2 BHK, 3 BHK" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-      </div>
-
-      <div>
-        <label class="block text-sm font-medium text-slate-700 mb-1">Possession Date</label>
-        <input type="date" name="possession_date" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-      </div>
-
-      <div class="md:col-span-2">
-        <label class="block text-sm font-medium text-slate-700 mb-1">Welcome Message <span class="text-red-500">*</span></label>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Welcome Message *</label>
         <textarea name="welcome_message" rows="3" required placeholder="Welcome to our project! Premium homes..." class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
         <p class="text-xs text-slate-500 mt-1">This is sent to the user immediately after they select this property.</p>
       </div>
 
-      <div class="md:col-span-2">
-        <label class="block text-sm font-medium text-slate-700 mb-1">Brochure URL</label>
-        <input type="url" name="brochure_url" placeholder="https://cdn.example.com/brochure.pdf" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+      <!-- Google Map & Referral -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Google Map URL</label>
+          <input type="url" name="google_map_url" placeholder="https://maps.google.com/..." class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Referral Code</label>
+          <input type="text" name="referral_code" placeholder="PROJ_01" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+        </div>
       </div>
 
-      <div class="md:col-span-2">
-        <label class="block text-sm font-medium text-slate-700 mb-1">Google Map URL</label>
-        <input type="url" name="google_map_url" placeholder="https://maps.google.com/..." class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-      </div>
-
+      <!-- Media Assets Section -->
       <div>
-        <label class="block text-sm font-medium text-slate-700 mb-1">Referral Code</label>
-        <input type="text" name="referral_code" placeholder="PROJ_01" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+        <div class="flex justify-between items-center mb-2">
+          <label class="text-sm font-medium text-slate-700">Media Assets (brochures, images, videos, etc.)</label>
+          <button type="button" onclick="addAssetRow('add-assets-container')" class="text-xs text-blue-600 hover:underline">+ Add Asset</button>
+        </div>
+        <div id="add-assets-container" class="space-y-2">
+          <!-- Dynamic asset rows will be added here -->
+        </div>
       </div>
 
+      <!-- Active Checkbox -->
       <div class="flex items-center gap-2">
         <input type="checkbox" name="active" checked class="w-4 h-4 text-blue-600 rounded">
         <label class="text-sm text-slate-700">Active (visible to users)</label>
       </div>
 
-      <div class="md:col-span-2 flex justify-end gap-3 pt-2">
+      <!-- Buttons -->
+      <div class="flex justify-end gap-3 pt-2">
         <button type="button" onclick="toggleAddForm()" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
         <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg text-sm font-medium">Save Property</button>
       </div>
@@ -84,6 +168,7 @@
            try { configs = JSON.parse(prop.configuration_types); } catch(e) { configs = [prop.configuration_types]; }
          }
        }
+       let assets = prop.assets || [];
     %>
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden" id="prop-card-<%= prop.property_id %>">
         
@@ -103,20 +188,35 @@
             </div>
             
             <p class="text-sm text-slate-500 mb-3">
-              ₹<%= prop.price_min ? (prop.price_min/100000).toFixed(1) + 'L' : 'N/A' %> 
+              <%= prop.price_min ? '₹' + (prop.price_min/100000).toFixed(1) + 'L' : 'N/A' %> 
               <% if (prop.price_max && prop.price_max !== prop.price_min) { %> - ₹<%= (prop.price_max/100000).toFixed(1) %>L <% } %>
               • <%= configs.join(', ') %>
               <% if (prop.possession_date) { %> • <%= new Date(prop.possession_date).toLocaleDateString('en-IN', {month:'short', year:'numeric'}) %><% } %>
             </p>
 
+            <!-- Welcome Message Preview -->
             <div class="p-3 bg-amber-50 rounded-lg border border-amber-200 mb-4">
               <p class="text-xs font-semibold text-amber-800 mb-1">Welcome Message:</p>
               <p class="text-xs text-amber-700 italic line-clamp-3"><%= prop.welcome_message || 'No welcome message set' %></p>
             </div>
 
+            <!-- Assets Preview -->
+            <% if (assets.length > 0) { %>
+              <div class="mb-4">
+                <p class="text-xs font-semibold text-slate-500 mb-1">Assets:</p>
+                <div class="flex flex-wrap gap-1">
+                  <% assets.forEach(asset => { %>
+                    <span class="inline-flex items-center px-2 py-0.5 bg-slate-100 rounded-full text-xs text-slate-700">
+                      <%= asset.asset_type === 'image' ? '🖼️' : asset.asset_type === 'video' ? '🎥' : '📄' %>
+                      <%= asset.asset_name || 'file' %>
+                    </span>
+                  <% }) %>
+                </div>
+              </div>
+            <% } %>
+
             <div class="flex gap-2">
               <button onclick="toggleEdit(<%= prop.property_id %>)" class="flex-1 text-sm bg-slate-100 hover:bg-slate-200 py-2 rounded-lg font-medium transition">Edit</button>
-              <!-- New: Manage Slots link -->
               <a href="/admin/properties/<%= prop.property_id %>/slots?clientId=<%= clientId %>" 
                  class="flex-1 text-sm bg-purple-50 hover:bg-purple-100 py-2 rounded-lg font-medium text-center text-purple-700 border border-purple-200 transition">
                 🕒 Slots
@@ -140,14 +240,44 @@
               <input type="text" name="property_name" value="<%= prop.property_name %>" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
             </div>
 
+            <!-- Price Section in Edit -->
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Price Min</label>
-                <input type="number" name="price_min" value="<%= prop.price_min || '' %>" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                <label class="block text-xs font-medium text-slate-600 mb-1">Price Mode</label>
+                <select id="edit-price-mode-<%= prop.property_id %>" name="price_mode" onchange="toggleEditPriceFields(<%= prop.property_id %>)" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                  <option value="preset" <%= isCustomPrice(prop) ? '' : 'selected' %>>Preset Range</option>
+                  <option value="custom" <%= isCustomPrice(prop) ? 'selected' : '' %>>Custom Range</option>
+                </select>
               </div>
-              <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Price Max</label>
-                <input type="number" name="price_max" value="<%= prop.price_max || '' %>" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+              <div id="edit-price-preset-<%= prop.property_id %>" class="<%= isCustomPrice(prop) ? 'hidden' : '' %>">
+                <label class="block text-xs font-medium text-slate-600 mb-1">Preset Range</label>
+                <select name="price_preset" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                  <option value="">-- Select --</option>
+                  <% const presets = ['₹85 L – ₹1.0 Cr','₹1.0 Cr – ₹1.2 Cr','₹1.2 Cr – ₹1.5 Cr','Above ₹1.5 Cr']; %>
+                  <% presets.forEach(p => { %>
+                    <option value="<%= p %>" <%= selectedPreset(prop, p) ? 'selected' : '' %>><%= p %></option>
+                  <% }) %>
+                </select>
+              </div>
+              <div id="edit-price-custom-<%= prop.property_id %>" class="grid grid-cols-2 gap-3 col-span-2 <%= isCustomPrice(prop) ? '' : 'hidden' %>">
+                <div>
+                  <label class="block text-xs font-medium text-slate-600 mb-1">Min Price</label>
+                  <select name="price_min_custom" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                    <option value="">-- Select --</option>
+                    <% priceDropdownOptions.forEach(val => { %>
+                      <option value="<%= val %>" <%= prop.price_min == val ? 'selected' : '' %>><%= formatPriceOption(val) %></option>
+                    <% }) %>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600 mb-1">Max Price</label>
+                  <select name="price_max_custom" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                    <option value="">-- Select --</option>
+                    <% priceDropdownOptions.forEach(val => { %>
+                      <option value="<%= val %>" <%= prop.price_max == val ? 'selected' : '' %>><%= formatPriceOption(val) %></option>
+                    <% }) %>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -162,11 +292,6 @@
             </div>
 
             <div>
-              <label class="block text-xs font-medium text-slate-600 mb-1">Brochure URL</label>
-              <input type="url" name="brochure_url" value="<%= prop.brochure_url || '' %>" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
-            </div>
-
-            <div>
               <label class="block text-xs font-medium text-slate-600 mb-1">Google Map URL</label>
               <input type="url" name="google_map_url" value="<%= prop.google_map_url || '' %>" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
             </div>
@@ -174,6 +299,32 @@
             <div>
               <label class="block text-xs font-medium text-slate-600 mb-1">Referral Code</label>
               <input type="text" name="referral_code" value="<%= prop.referral_code || '' %>" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+            </div>
+
+            <!-- Assets in Edit -->
+            <div>
+              <div class="flex justify-between items-center mb-1">
+                <label class="text-xs font-medium text-slate-600">Assets</label>
+                <button type="button" onclick="addAssetRow('edit-assets-<%= prop.property_id %>')" class="text-xs text-blue-600 hover:underline">+ Add</button>
+              </div>
+              <div id="edit-assets-<%= prop.property_id %>" class="space-y-2 max-h-40 overflow-y-auto">
+                <% if (assets.length > 0) { %>
+                  <% assets.forEach((asset, idx) => { %>
+                    <div class="flex items-center gap-2 asset-row">
+                      <select name="asset_type[]" class="w-24 px-2 py-1 border border-slate-300 rounded text-xs">
+                        <option value="brochure" <%= asset.asset_type === 'brochure' ? 'selected' : '' %>>Brochure</option>
+                        <option value="image" <%= asset.asset_type === 'image' ? 'selected' : '' %>>Image</option>
+                        <option value="video" <%= asset.asset_type === 'video' ? 'selected' : '' %>>Video</option>
+                        <option value="pdf" <%= asset.asset_type === 'pdf' ? 'selected' : '' %>>PDF</option>
+                        <option value="other" <%= asset.asset_type === 'other' ? 'selected' : '' %>>Other</option>
+                      </select>
+                      <input type="url" name="asset_url[]" value="<%= asset.asset_url %>" placeholder="URL" class="flex-1 px-2 py-1 border border-slate-300 rounded text-xs">
+                      <input type="text" name="asset_name[]" value="<%= asset.asset_name || '' %>" placeholder="Name" class="w-24 px-2 py-1 border border-slate-300 rounded text-xs">
+                      <button type="button" onclick="this.parentElement.remove()" class="text-red-500 hover:text-red-700 text-xs">✕</button>
+                    </div>
+                  <% }) %>
+                <% } %>
+              </div>
             </div>
 
             <div class="flex items-center gap-2">
@@ -201,24 +352,57 @@
   <% } %>
 </div>
 
+<!-- JavaScript for dynamic behaviors -->
 <script>
 function toggleAddForm() {
   const form = document.getElementById('add-form');
   form.classList.toggle('hidden');
   if (!form.classList.contains('hidden')) {
     form.scrollIntoView({ behavior: 'smooth' });
+    const container = document.getElementById('add-assets-container');
+    if (container.children.length === 0) addAssetRow('add-assets-container');
   }
+}
+
+function toggleAddPriceFields() {
+  const mode = document.getElementById('add-price-mode').value;
+  document.getElementById('add-price-preset-group').classList.toggle('hidden', mode !== 'preset');
+  document.getElementById('add-price-custom-group').classList.toggle('hidden', mode !== 'custom');
 }
 
 function toggleEdit(id) {
   const view = document.getElementById('prop-view-' + id);
   const edit = document.getElementById('prop-edit-' + id);
-  if (view.classList.contains('hidden')) {
-    view.classList.remove('hidden');
-    edit.classList.add('hidden');
-  } else {
-    view.classList.add('hidden');
-    edit.classList.remove('hidden');
+  view.classList.toggle('hidden');
+  edit.classList.toggle('hidden');
+  const container = document.getElementById('edit-assets-' + id);
+  if (!edit.classList.contains('hidden') && container.querySelectorAll('.asset-row').length === 0) {
+    addAssetRow('edit-assets-' + id);
   }
+}
+
+function toggleEditPriceFields(id) {
+  const mode = document.getElementById('edit-price-mode-' + id).value;
+  document.getElementById('edit-price-preset-' + id).classList.toggle('hidden', mode !== 'preset');
+  document.getElementById('edit-price-custom-' + id).classList.toggle('hidden', mode !== 'custom');
+}
+
+function addAssetRow(containerId) {
+  const container = document.getElementById(containerId);
+  const row = document.createElement('div');
+  row.className = 'flex items-center gap-2 asset-row';
+  row.innerHTML = `
+    <select name="asset_type[]" class="w-24 px-2 py-1 border border-slate-300 rounded text-xs">
+      <option value="brochure">Brochure</option>
+      <option value="image">Image</option>
+      <option value="video">Video</option>
+      <option value="pdf">PDF</option>
+      <option value="other">Other</option>
+    </select>
+    <input type="url" name="asset_url[]" placeholder="URL" class="flex-1 px-2 py-1 border border-slate-300 rounded text-xs">
+    <input type="text" name="asset_name[]" placeholder="Name" class="w-24 px-2 py-1 border border-slate-300 rounded text-xs">
+    <button type="button" onclick="this.parentElement.remove()" class="text-red-500 hover:text-red-700 text-xs">✕</button>
+  `;
+  container.appendChild(row);
 }
 </script>

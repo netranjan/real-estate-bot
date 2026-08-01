@@ -1,5 +1,5 @@
 const send = require('../../whatsapp/send');
-const { listMessage, textMessage } = require('../../whatsapp/payloads');
+const { listMessage, textMessage, buttonMessage } = require('../../whatsapp/payloads');
 const propertyService = require('../../services/property-service');
 const db = require('../../db/queries');
 
@@ -65,10 +65,17 @@ async function execute(lead, config) {
   }
 
   if (items.length === 0) {
+    // Send a button to allow the user to request a callback directly
+    const payload = buttonMessage(
+      to,
+      'Sorry, no properties match your criteria right now.',
+      [{ id: 'REQUEST_CALLBACK', title: 'Request Callback' }],
+      'No Matches'
+    );
     await send({
       phoneNumberId: client.meta_phone_number_id,
       accessToken: client.meta_access_token,
-      payload: textMessage(to, 'Sorry, no properties match your criteria right now. Tap "Request Callback" and our agent will help you find the perfect home.'),
+      payload,
     });
     return { success: true, type: 'LIST_EMPTY' };
   }

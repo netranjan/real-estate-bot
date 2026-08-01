@@ -12,11 +12,58 @@ function parseBudgetRange(budgetString) {
   return map[budgetString] || { min: 0, max: Infinity };
 }
 
-// ── NEW: Smart filtering based on lead answers + admin-selected dimensions ──
+// ── NEW: Asset helpers ──
+async function getPropertyAssets(propertyId) {
+  const result = await db.pool.query(
+    'SELECT * FROM media_assets WHERE property_id = $1 ORDER BY created_at',
+    [propertyId]
+  );
+  return result.rows;
+}
+
+async function replaceAssets(propertyId, assets) {
+  // assets = [{ asset_type, asset_url, asset_name }, ...]
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DELETE FROM media_assets WHERE property_id = $1', [propertyId]);
+    for (const a of assets) {
+      if (a.asset_type && a.asset_url) {
+        await client.query(
+          `INSERT INTO media_assets (property_id, asset_type, asset_url, asset_name)
+           VALUES ($1, $2, $3, $4)`,
+          [propertyId, a.asset_type, a.asset_url, a.asset_name || null]
+        );
+      }
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// ── Enhanced: getPropertyDetails now includes assets ──
+async function getPropertyDetails(propertyId) {
+  const property = await db.getPropertyById(propertyId);
+  if (!property) return null;
+  const assets = await getPropertyAssets(propertyId);
+  return { ...property, assets };
+}
+
+// ── Legacy: getBrochureUrl (returns first brochure URL, if any) ──
+async function getBrochureUrl(propertyId) {
+  const media = await db.pool.query(
+    "SELECT asset_url FROM media_assets WHERE property_id = $1 AND asset_type = 'brochure' ORDER BY created_at LIMIT 1",
+    [propertyId]
+  );
+  return media.rows.length > 0 ? media.rows[0].asset_url : null;
+}
+
+// ── Smart filtering based on lead answers + admin-selected dimensions ──
 async function getSmartFilteredProperties(clientId, leadAnswers, matchDimensions) {
-  // leadAnswers = { budget_range: '₹1.0 Cr – ₹1.2 Cr', configuration: '3BHK', ... }
-  // matchDimensions = ['budget_range', 'configuration'] (from admin checkboxes)
-  
   if (!matchDimensions || matchDimensions.length === 0) {
     return db.getPropertiesByClient(clientId);
   }
@@ -24,46 +71,36 @@ async function getSmartFilteredProperties(clientId, leadAnswers, matchDimensions
   const allProps = await db.getPropertiesByClient(clientId);
   
   return allProps.filter(prop => {
-    // Must pass ALL dimensions that have lead answers
     return matchDimensions.every(dim => {
       const leadValue = leadAnswers[dim];
-      
-      // If lead hasn't answered this question yet, don't filter by it
       if (!leadValue || String(leadValue).trim() === '') return true;
       
       switch (dim) {
         case 'budget_range': {
           const budget = parseBudgetRange(leadValue);
-          // Property price range overlaps with lead budget
           return prop.price_min <= budget.max && prop.price_max >= budget.min;
         }
-        
         case 'configuration': {
           const configs = prop.configuration_types || [];
           const want = String(leadValue).toLowerCase();
           return configs.some(c => String(c).toLowerCase() === want);
         }
-        
         case 'possession': {
           const val = String(leadValue).toLowerCase();
           if (val === 'ready' || val === 'immediate') {
-            // Ready = no possession date, or date is today or past
             if (!prop.possession_date) return true;
             return new Date(prop.possession_date) <= new Date();
           }
-          // Year-based: "2026"
           const year = parseInt(leadValue);
           if (year && prop.possession_date) {
             return new Date(prop.possession_date).getFullYear() === year;
           }
           return true;
         }
-        
         case 'location': {
           const haystack = String(prop.location || prop.property_name || '').toLowerCase();
           return haystack.includes(String(leadValue).toLowerCase());
         }
-        
         default:
           return true;
       }
@@ -71,7 +108,7 @@ async function getSmartFilteredProperties(clientId, leadAnswers, matchDimensions
   });
 }
 
-// ── OLD: Keep for backward compatibility with existing flows ──
+// ── Old filter for backward compatibility ──
 async function getFilteredProperties(clientId, conditions, leadAnswers) {
   if (!conditions || conditions.length === 0) {
     return db.getPropertiesByClient(clientId);
@@ -143,19 +180,6 @@ async function getMatchingProperties(clientId, answers) {
   return db.filterProperties(clientId, config, budget.min, budget.max);
 }
 
-async function getPropertyDetails(propertyId) {
-  const property = await db.getPropertyById(propertyId);
-  if (!property) return null;
-  const media = await db.getMediaForProperty(propertyId, 'brochure');
-  const images = await db.getMediaForProperty(propertyId, 'image');
-  return { ...property, brochures: media, images: images };
-}
-
-async function getBrochureUrl(propertyId) {
-  const media = await db.getMediaForProperty(propertyId, 'brochure');
-  return media.length > 0 ? media[0].asset_url : null;
-}
-
 module.exports = {
   parseBudgetRange,
   getMatchingProperties,
@@ -163,4 +187,6 @@ module.exports = {
   getSmartFilteredProperties,
   getPropertyDetails,
   getBrochureUrl,
+  getPropertyAssets,
+  replaceAssets,
 };

@@ -1,3 +1,4 @@
+<!-- views/admin/property-detail.ejs -->
 <div class="space-y-6 fade-in">
   <!-- Header -->
   <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
@@ -22,8 +23,14 @@
       <div>
         <p class="text-xs text-slate-500 uppercase font-semibold">Price Range</p>
         <p class="text-sm text-slate-700 mt-1">
-          <%= property.price_min ? '₹' + property.price_min.toLocaleString('en-IN') : '-' %>
-          <%= property.price_max ? ' - ₹' + property.price_max.toLocaleString('en-IN') : '' %>
+          <% if (property.price_min) { %>
+            ₹<%= property.price_min.toLocaleString('en-IN') %>
+            <% if (property.price_max && property.price_max !== property.price_min) { %>
+              - ₹<%= property.price_max.toLocaleString('en-IN') %>
+            <% } %>
+          <% } else { %>
+            Not set
+          <% } %>
         </p>
       </div>
       <div>
@@ -47,14 +54,53 @@
         </p>
       </div>
       <div>
-        <p class="text-xs text-slate-500 uppercase font-semibold">Brochure</p>
+        <p class="text-xs text-slate-500 uppercase font-semibold">Active</p>
         <p class="text-sm text-slate-700 mt-1">
-          <% if (property.brochure_url) { %>
-            <a href="<%= property.brochure_url %>" target="_blank" class="text-blue-600 hover:underline">Download</a>
-          <% } else { %> Not set <% } %>
+          <% if (property.active) { %>
+            <span class="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded font-semibold">Active</span>
+          <% } else { %>
+            <span class="px-2 py-0.5 bg-slate-100 text-slate-500 text-xs rounded font-semibold">Inactive</span>
+          <% } %>
         </p>
       </div>
     </div>
+  </div>
+
+  <!-- Assets Section (new) -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <h3 class="text-lg font-semibold text-slate-800 mb-4">Media Assets</h3>
+    <% if (assets && assets.length > 0) { %>
+      <div class="space-y-3">
+        <% assets.forEach(asset => { %>
+          <div class="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">
+                <%= asset.asset_type === 'image' ? '🖼️' : 
+                    asset.asset_type === 'video' ? '🎥' : 
+                    asset.asset_type === 'pdf' ? '📕' :
+                    asset.asset_type === 'brochure' ? '📄' : '📎' %>
+              </span>
+              <div>
+                <p class="text-sm font-medium text-slate-800">
+                  <%= asset.asset_name || asset.asset_url %>
+                </p>
+                <p class="text-xs text-slate-500">
+                  Type: <%= asset.asset_type %> | 
+                  <% if (asset.asset_url) { %>
+                    <a href="<%= asset.asset_url %>" target="_blank" class="text-blue-600 hover:underline">Open</a>
+                  <% } else { %>
+                    No URL
+                  <% } %>
+                </p>
+              </div>
+            </div>
+            <span class="text-xs text-slate-400"><%= asset.created_at ? new Date(asset.created_at).toLocaleDateString('en-IN') : '' %></span>
+          </div>
+        <% }) %>
+      </div>
+    <% } else { %>
+      <p class="text-sm text-slate-400">No media assets attached.</p>
+    <% } %>
   </div>
 
   <!-- Welcome Message -->
