@@ -9,7 +9,6 @@ function extractMessageData(body) {
   const msg = value.messages[0];
   const contact = value.contacts?.[0] || {};
 
-  // Determine user input: button reply, list reply, or plain text
   let userInput = '';
   if (msg.interactive?.button_reply?.id) {
     userInput = msg.interactive.button_reply.id;
@@ -70,13 +69,16 @@ async function handleIncomingMessage(body) {
       return;
     }
 
+    // Only set the start node if the lead doesn't have one yet
     if (!lead.current_node_id && flow.start_node_id) {
       await db.updateLeadNode(lead.lead_id, flow.start_node_id);
       lead = await db.getLeadById(lead.lead_id);
     }
 
     const historyCount = (await db.getLeadAnswers(lead.lead_id)).length;
-    const isFreshLead = historyCount === 0 && lead.current_node_id === flow.start_node_id;
+    const isFreshLead = historyCount === 0
+      && lead.current_node_id === flow.start_node_id
+      && !user_input;   // ✅ no parsed input → it’s the very first message (text only)
 
     if (isFreshLead) {
       const startNode = await db.getNodeById(lead.current_node_id);
@@ -87,7 +89,10 @@ async function handleIncomingMessage(body) {
       }
     }
 
-    await stateMachine.processMessage(lead, user_input);
+    // If we have a user input (button, list, or text), process it
+    if (user_input) {
+      await stateMachine.processMessage(lead, user_input);
+    }
 
   } catch (error) {
     console.error('❌ Engine error:', error.message);
