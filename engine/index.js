@@ -53,6 +53,7 @@ async function handleIncomingMessage(body) {
       clientId,
     });
 
+    // Attach referral property if present
     if (referral_ref && !lead.context_data?.selected_property_id) {
       const property = await db.getPropertyByReferralCode(referral_ref);
       if (property && property.client_id === clientId) {
@@ -69,27 +70,22 @@ async function handleIncomingMessage(body) {
       return;
     }
 
-    // Only set the start node if the lead doesn't have one yet
-    if (!lead.current_node_id && flow.start_node_id) {
-      await db.updateLeadNode(lead.lead_id, flow.start_node_id);
-      lead = await db.getLeadById(lead.lead_id);
-    }
+    // ── FIX: Only auto‑start on the very first message ──
+    const answersCount = (await db.getLeadAnswers(lead.lead_id)).length;
+    const flowStarted = lead.context_data?.flow_started;
 
-    const historyCount = (await db.getLeadAnswers(lead.lead_id)).length;
-    const isFreshLead = historyCount === 0
-      && lead.current_node_id === flow.start_node_id
-      && !user_input;   // ✅ no parsed input → it’s the very first message (text only)
-
-    if (isFreshLead) {
+    if (answersCount === 0 && lead.current_node_id === flow.start_node_id && !flowStarted) {
       const startNode = await db.getNodeById(lead.current_node_id);
       if (startNode) {
-        console.log('🚀 Auto-starting flow for new lead at node:', startNode.node_name);
+        console.log('🚀 First message – auto-starting flow');
         await stateMachine.executeAndChain(lead, startNode);
+        // Mark that the flow has been started (so the next message is not treated as first)
+        await leadService.saveToContext(lead.lead_id, 'flow_started', true);
         return;
       }
     }
 
-    // If we have a user input (button, list, or text), process it
+    // Normal input processing (after flow has started)
     if (user_input) {
       await stateMachine.processMessage(lead, user_input);
     }
