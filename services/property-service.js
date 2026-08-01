@@ -1,18 +1,66 @@
 const db = require('../db/queries');
 
-// Budget range parser: "₹1.0 Cr – ₹1.2 Cr" → { min: 10000000, max: 12000000 }
+// ── Free‑text price parser (INR) ──
+function parsePriceInput(input) {
+  if (!input) return null;
+  let str = String(input).trim();
+  if (str === '') return null;
+
+  // Remove commas and spaces for plain number parsing later
+  const cleaned = str.replace(/,/g, '').replace(/\s+/g, '');
+
+  // Check for crore suffix (case insensitive)
+  const croreMatch = str.match(/^([\d.]+)\s*Cr$/i);
+  if (croreMatch) {
+    const num = parseFloat(croreMatch[1]);
+    if (!isNaN(num)) return Math.round(num * 10000000);
+  }
+
+  // Check for lakh suffix
+  const lakhMatch = str.match(/^([\d.]+)\s*L$/i);
+  if (lakhMatch) {
+    const num = parseFloat(lakhMatch[1]);
+    if (!isNaN(num)) return Math.round(num * 100000);
+  }
+
+  // Try as plain number (already cleaned of commas/spaces)
+  const plainNumber = parseFloat(cleaned);
+  if (!isNaN(plainNumber)) return Math.round(plainNumber);
+
+  return null;
+}
+
+// Budget range parser (used for WhatsApp flow filtering)
 function parseBudgetRange(budgetString) {
   if (!budgetString) return { min: 0, max: Infinity };
-  const map = {
+
+  // Static presets (backward compatibility)
+  const presets = {
     '₹85 L – ₹1.0 Cr': { min: 8500000, max: 10000000 },
     '₹1.0 Cr – ₹1.2 Cr': { min: 10000000, max: 12000000 },
     '₹1.2 Cr – ₹1.5 Cr': { min: 12000000, max: 15000000 },
     'Above ₹1.5 Cr': { min: 15000000, max: 999999999 },
   };
-  return map[budgetString] || { min: 0, max: Infinity };
+  if (presets[budgetString]) return presets[budgetString];
+
+  // Try parsing as single value (max budget)
+  const single = parsePriceInput(budgetString);
+  if (single !== null) {
+    return { min: 0, max: single };
+  }
+
+  // Try range split by '-'
+  const parts = budgetString.split('-').map(s => s.trim());
+  if (parts.length === 2) {
+    const min = parsePriceInput(parts[0]);
+    const max = parsePriceInput(parts[1]);
+    if (min !== null && max !== null) return { min, max };
+  }
+
+  return { min: 0, max: Infinity };
 }
 
-// ── NEW: Asset helpers ──
+// ── Asset helpers ──
 async function getPropertyAssets(propertyId) {
   const result = await db.pool.query(
     'SELECT * FROM media_assets WHERE property_id = $1 ORDER BY created_at',
@@ -22,7 +70,6 @@ async function getPropertyAssets(propertyId) {
 }
 
 async function replaceAssets(propertyId, assets) {
-  // assets = [{ asset_type, asset_url, asset_name }, ...]
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
@@ -45,7 +92,7 @@ async function replaceAssets(propertyId, assets) {
   }
 }
 
-// ── Enhanced: getPropertyDetails now includes assets ──
+// ── getPropertyDetails ──
 async function getPropertyDetails(propertyId) {
   const property = await db.getPropertyById(propertyId);
   if (!property) return null;
@@ -53,7 +100,7 @@ async function getPropertyDetails(propertyId) {
   return { ...property, assets };
 }
 
-// ── Legacy: getBrochureUrl (returns first brochure URL, if any) ──
+// ── Legacy brochure URL ──
 async function getBrochureUrl(propertyId) {
   const media = await db.pool.query(
     "SELECT asset_url FROM media_assets WHERE property_id = $1 AND asset_type = 'brochure' ORDER BY created_at LIMIT 1",
@@ -62,7 +109,7 @@ async function getBrochureUrl(propertyId) {
   return media.rows.length > 0 ? media.rows[0].asset_url : null;
 }
 
-// ── Smart filtering based on lead answers + admin-selected dimensions ──
+// ── Smart filtering (unchanged) ──
 async function getSmartFilteredProperties(clientId, leadAnswers, matchDimensions) {
   if (!matchDimensions || matchDimensions.length === 0) {
     return db.getPropertiesByClient(clientId);
@@ -108,7 +155,7 @@ async function getSmartFilteredProperties(clientId, leadAnswers, matchDimensions
   });
 }
 
-// ── Old filter for backward compatibility ──
+// ── Old filter (unchanged) ──
 async function getFilteredProperties(clientId, conditions, leadAnswers) {
   if (!conditions || conditions.length === 0) {
     return db.getPropertiesByClient(clientId);
@@ -182,6 +229,7 @@ async function getMatchingProperties(clientId, answers) {
 
 module.exports = {
   parseBudgetRange,
+  parsePriceInput,   // export for routes
   getMatchingProperties,
   getFilteredProperties,
   getSmartFilteredProperties,

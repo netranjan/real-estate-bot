@@ -6,6 +6,7 @@ const clientService = require('../services/client-service');
 const flowService = require('../services/flow-service');
 const propertyService = require('../services/property-service');
 const { requireLogin, requireRole } = require('../middleware/auth');
+const { formatPrice } = require('../utils/format-price');
 
 // ── Session‑based authentication ──
 router.use(requireLogin);
@@ -40,7 +41,11 @@ function render(req, res, view, data) {
   res.render(view, { ...data, req });
 }
 
-// Helper to parse price from request (preset or custom)
+// ── Price parsing (free‑text) ──
+function parsePriceInput(input) {
+  return propertyService.parsePriceInput(input);
+}
+
 function resolvePriceFromBody(body) {
   const priceMode = body.price_mode || 'preset';
   let priceMin = null, priceMax = null;
@@ -50,9 +55,8 @@ function resolvePriceFromBody(body) {
     priceMin = range.min;
     priceMax = range.max;
   } else if (priceMode === 'custom') {
-    priceMin = body.price_min_custom ? parseFloat(body.price_min_custom) : null;
-    priceMax = body.price_max_custom ? parseFloat(body.price_max_custom) : null;
-    // Ensure min <= max
+    priceMin = parsePriceInput(body.price_min_custom);
+    priceMax = parsePriceInput(body.price_max_custom);
     if (priceMin !== null && priceMax !== null && priceMin > priceMax) {
       [priceMin, priceMax] = [priceMax, priceMin];
     }
@@ -61,24 +65,19 @@ function resolvePriceFromBody(body) {
   return { priceMin, priceMax };
 }
 
-// Helper to upsert assets for a property
+// ── Asset helper ──
 async function syncPropertyAssets(propertyId, assetTypes, assetUrls, assetNames) {
-  // Remove existing assets
-  await pool.query('DELETE FROM media_assets WHERE property_id = $1', [propertyId]);
-  // Insert new ones
   const types = Array.isArray(assetTypes) ? assetTypes : (assetTypes ? [assetTypes] : []);
-  const urls  = Array.isArray(assetUrls) ? assetUrls : (assetUrls ? [assetUrls] : []);
+  const urls  = Array.isArray(assetUrls)  ? assetUrls  : (assetUrls  ? [assetUrls]  : []);
   const names = Array.isArray(assetNames) ? assetNames : (assetNames ? [assetNames] : []);
 
-  for (let i = 0; i < types.length; i++) {
-    if (types[i] && urls[i]) {
-      await pool.query(
-        `INSERT INTO media_assets (property_id, asset_type, asset_url, asset_name)
-         VALUES ($1, $2, $3, $4)`,
-        [propertyId, types[i], urls[i], names[i] || null]
-      );
-    }
-  }
+  const assets = types.map((type, i) => ({
+    asset_type: type,
+    asset_url: urls[i] || '',
+    asset_name: names[i] || null
+  })).filter(a => a.asset_type && a.asset_url);
+
+  await propertyService.replaceAssets(propertyId, assets);
 }
 
 // ═══════════════════════════════════════
@@ -109,34 +108,40 @@ router.get('/', async (req, res) => {
 
 router.get('/properties', async (req, res) => {
   const clientId = resolveClientId(req);
+  const client = await db.getClientByIdIncludingInactive(clientId);
+  const currencySymbol = client?.currency_symbol || '₹';
   const properties = await db.getPropertiesByClient(clientId);
+
   // Attach assets to each property
   for (let prop of properties) {
-    const assets = await pool.query(
-      'SELECT * FROM media_assets WHERE property_id = $1 ORDER BY created_at',
-      [prop.property_id]
-    );
-    prop.assets = assets.rows;
+    const assets = await propertyService.getPropertyAssets(prop.property_id);
+    prop.assets = assets;
   }
-  render(req, res, 'admin/properties', { title: 'Properties', properties, clientId });
+
+  render(req, res, 'admin/properties', {
+    title: 'Properties',
+    properties,
+    clientId,
+    currencySymbol,
+    formatPrice
+  });
 });
 
-// View single property detail
 router.get('/properties/:id', async (req, res) => {
   const property = await db.getPropertyById(req.params.id);
   if (!property) return res.status(404).send('Property not found');
+  const client = await db.getClientById(property.client_id);
+  const currencySymbol = client?.currency_symbol || '₹';
   const slots = await db.getVisitOptionsForProperty(req.params.id);
-  const assets = await pool.query(
-    'SELECT * FROM media_assets WHERE property_id = $1 ORDER BY created_at',
-    [req.params.id]
-  );
-  const clientId = property.client_id;
+  const assets = await propertyService.getPropertyAssets(req.params.id);
   render(req, res, 'admin/property-detail', {
     title: property.property_name,
     property,
     slots,
-    assets: assets.rows,
-    clientId
+    assets,
+    clientId: property.client_id,
+    currencySymbol,
+    formatPrice
   });
 });
 
@@ -146,7 +151,6 @@ router.post('/properties', async (req, res) => {
     property_name, configuration_types, possession_date,
     welcome_message, google_map_url, referral_code, active
   } = req.body;
-
   const { priceMin, priceMax } = resolvePriceFromBody(req.body);
 
   try {
@@ -160,18 +164,16 @@ router.post('/properties', async (req, res) => {
         google_map_url || null, referral_code || null, active === 'on' || active === 'true']
     );
     const propertyId = result.rows[0].property_id;
-
-    // Sync assets
     await syncPropertyAssets(propertyId, req.body['asset_type'], req.body['asset_url'], req.body['asset_name']);
-
     redirectWithQuery(res, req, '/admin/properties');
   } catch (err) { res.status(500).send('Error: ' + err.message); }
 });
 
 router.post('/properties/:id/update', async (req, res) => {
-  const { property_name, configuration_types, possession_date,
-          welcome_message, google_map_url, referral_code, active } = req.body;
-
+  const {
+    property_name, configuration_types, possession_date,
+    welcome_message, google_map_url, referral_code, active
+  } = req.body;
   const { priceMin, priceMax } = resolvePriceFromBody(req.body);
 
   try {
@@ -185,10 +187,7 @@ router.post('/properties/:id/update', async (req, res) => {
         google_map_url || null, referral_code || null,
         active === 'on' || active === 'true', req.params.id]
     );
-
-    // Sync assets
     await syncPropertyAssets(req.params.id, req.body['asset_type'], req.body['asset_url'], req.body['asset_name']);
-
     redirectWithQuery(res, req, '/admin/properties');
   } catch (err) { res.status(500).send('Error: ' + err.message); }
 });
@@ -209,7 +208,10 @@ router.get('/properties/:id/slots', async (req, res) => {
   if (!property) return res.status(404).send('Property not found');
   const slots = await db.getVisitOptionsForProperty(req.params.id);
   const clientId = property.client_id;
-  render(req, res, 'admin/property-slots', { title: `Slots - ${property.property_name}`, property, slots, clientId });
+  render(req, res, 'admin/property-slots', {
+    title: `Slots - ${property.property_name}`,
+    property, slots, clientId
+  });
 });
 
 router.post('/properties/:id/slots', async (req, res) => {
@@ -218,7 +220,10 @@ router.post('/properties/:id/slots', async (req, res) => {
   const clientId = req.query.clientId || req.body.clientId;
   if (!option_name) return res.status(400).send('Slot name required');
   try {
-    await pool.query(`INSERT INTO property_visit_options (property_id, option_name, active) VALUES ($1, $2, TRUE)`, [id, option_name]);
+    await pool.query(
+      `INSERT INTO property_visit_options (property_id, option_name, active) VALUES ($1, $2, TRUE)`,
+      [id, option_name]
+    );
     res.redirect(`/admin/properties/${id}/slots?clientId=${clientId}`);
   } catch (err) { res.status(500).send('Error: ' + err.message); }
 });
@@ -245,7 +250,7 @@ router.post('/properties/:id/slots/:slotId/delete', async (req, res) => {
 });
 
 // ═══════════════════════════════════════
-// FLOW BUILDER
+// FLOW BUILDER (unchanged, included for completeness)
 // ═══════════════════════════════════════
 
 router.get('/flows', async (req, res) => {
@@ -263,14 +268,21 @@ router.get('/flows', async (req, res) => {
     const fullFlow = await flowService.getFullFlow(activeFlow.flow_id);
     steps = fullFlow.nodes;
   }
-  render(req, res, 'admin/flow-builder', { title: 'Flow Builder', flows, activeFlow, steps, clientId });
+  render(req, res, 'admin/flow-builder', {
+    title: 'Flow Builder', flows, activeFlow, steps, clientId
+  });
 });
 
 router.post('/flows', async (req, res) => {
   const clientId = resolveClientId(req);
   const { flow_name, flow_version, is_active } = req.body;
   try {
-    await db.createFlow({ clientId, flowName: flow_name, flowVersion: parseInt(flow_version) || 1, isActive: is_active === 'on' || is_active === 'true' });
+    await db.createFlow({
+      clientId,
+      flowName: flow_name,
+      flowVersion: parseInt(flow_version) || 1,
+      isActive: is_active === 'on' || is_active === 'true'
+    });
     redirectWithQuery(res, req, '/admin/flows');
   } catch (err) { res.status(500).send('Error: ' + err.message); }
 });
@@ -327,9 +339,14 @@ router.post('/flows/steps', async (req, res) => {
   const { step_name, message_text, step_type, options, save_field } = req.body;
 
   const typeMap = {
-    question: 'collect_input', message: 'send_message', property_list: 'show_list',
-    property_welcome: 'property_welcome', brochure: 'send_document',
-    book_visit: 'book_appointment', callback: 'request_callback', end_conversation: 'end_conversation'
+    question: 'collect_input',
+    message: 'send_message',
+    property_list: 'show_list',
+    property_welcome: 'property_welcome',
+    brochure: 'send_document',
+    book_visit: 'book_appointment',
+    callback: 'request_callback',
+    end_conversation: 'end_conversation'
   };
   const nodeType = typeMap[step_type] || 'send_message';
   const config = { text: message_text };
@@ -338,7 +355,10 @@ router.post('/flows/steps', async (req, res) => {
     const lines = options.split('\n').filter(l => l.trim());
     config.options = lines.map(line => ({ label: line, value: line }));
     if (step_type === 'property_welcome') {
-      config.buttons = lines.map(line => ({ title: line, id: line.toUpperCase().replace(/\s+/g, '_') }));
+      config.buttons = lines.map(line => ({
+        title: line,
+        id: line.toUpperCase().replace(/\s+/g, '_')
+      }));
     }
   }
   if (step_type === 'property_list') {
@@ -347,7 +367,10 @@ router.post('/flows/steps', async (req, res) => {
       const parsed = JSON.parse(options || '{}');
       config.filter_mode = parsed.mode || 'all';
       config.match_dimensions = parsed.match_dimensions || [];
-    } catch (e) { config.filter_mode = 'all'; config.match_dimensions = []; }
+    } catch (e) {
+      config.filter_mode = 'all';
+      config.match_dimensions = [];
+    }
   }
   if (step_type === 'question') {
     config.field = save_field || step_name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
@@ -355,13 +378,19 @@ router.post('/flows/steps', async (req, res) => {
 
   const nodeCode = step_name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '') + '_' + Date.now();
   try {
-    const newNode = await db.createNode({ flowId: flow.flow_id, nodeCode, nodeType, nodeName: step_name, config, orderIndex: 0 });
+    const newNode = await db.createNode({
+      flowId: flow.flow_id,
+      nodeCode,
+      nodeType,
+      nodeName: step_name,
+      config,
+      orderIndex: 0
+    });
     if (!flow.start_node_id) await db.updateFlow(flow.flow_id, { startNodeId: newNode.node_id });
     redirectWithQuery(res, req, '/admin/flows?flowId=' + flow.flow_id);
   } catch (err) { res.status(500).send('Error: ' + err.message); }
 });
 
-// Update step – handles all type-specific fields
 router.post('/flows/steps/:id/update', async (req, res) => {
   const { step_name, message_text, options, save_field, document_url } = req.body;
   const flowId = req.body.flow_id;
@@ -375,7 +404,10 @@ router.post('/flows/steps/:id/update', async (req, res) => {
         (node.node_type === 'collect_input' || node.node_type === 'property_welcome' || node.node_type === 'book_appointment')) {
       const lines = options.split('\n').filter(l => l.trim());
       if (node.node_type === 'property_welcome') {
-        config.buttons = lines.map(line => ({ title: line, id: line.toUpperCase().replace(/\s+/g, '_') }));
+        config.buttons = lines.map(line => ({
+          title: line,
+          id: line.toUpperCase().replace(/\s+/g, '_')
+        }));
         delete config.options;
       } else {
         config.options = lines.map(line => {
@@ -398,16 +430,12 @@ router.post('/flows/steps/:id/update', async (req, res) => {
       if (req.body.media_items_json) {
         try {
           const mediaItems = JSON.parse(req.body.media_items_json);
-          if (Array.isArray(mediaItems) && mediaItems.length > 0) {
-            config.media_items = mediaItems;
-            delete config.document_url_field;
-            delete config.filename;
-          } else {
-            config.media_items = [];
-            delete config.document_url_field;
-            delete config.filename;
-          }
-        } catch (e) { console.error('Failed to parse media_items_json', e); }
+          config.media_items = Array.isArray(mediaItems) && mediaItems.length > 0 ? mediaItems : [];
+          delete config.document_url_field;
+          delete config.filename;
+        } catch (e) {
+          console.error('Failed to parse media_items_json', e);
+        }
       } else if (document_url !== undefined) {
         config.document_url_field = document_url;
         delete config.media_items;
@@ -443,7 +471,13 @@ router.post('/flows/connections', async (req, res) => {
   const { from_step, to_step, user_choice, action_type, action_field } = req.body;
   const conditionLogic = flowService.buildEdgeAction(action_type, { field: action_field });
   try {
-    await db.createEdge({ flowId: flow.flow_id, fromNodeId: from_step, toNodeId: to_step, userInputValue: user_choice || null, conditionLogic });
+    await db.createEdge({
+      flowId: flow.flow_id,
+      fromNodeId: from_step,
+      toNodeId: to_step,
+      userInputValue: user_choice || null,
+      conditionLogic
+    });
     redirectWithQuery(res, req, '/admin/flows');
   } catch (err) { res.status(500).send('Error: ' + err.message); }
 });
@@ -456,7 +490,7 @@ router.post('/flows/connections/:id/delete', async (req, res) => {
 });
 
 // ═══════════════════════════════════════
-// LEADS CRM
+// LEADS CRM (unchanged)
 // ═══════════════════════════════════════
 
 router.get('/leads', async (req, res) => {
@@ -465,38 +499,67 @@ router.get('/leads', async (req, res) => {
   let sql = 'SELECT * FROM crm_leads_view WHERE client_id = $1';
   const params = [clientId];
   let idx = 2;
-  if (search) { sql += ` AND (contact_name ILIKE $${idx} OR whatsapp_number ILIKE $${idx} OR lead_display_id ILIKE $${idx})`; params.push(`%${search}%`); idx++; }
-  if (stage) { sql += ` AND current_pipeline_stage = $${idx++}`; params.push(stage); }
+  if (search) {
+    sql += ` AND (contact_name ILIKE $${idx} OR whatsapp_number ILIKE $${idx} OR lead_display_id ILIKE $${idx})`;
+    params.push(`%${search}%`);
+    idx++;
+  }
+  if (stage) {
+    sql += ` AND current_pipeline_stage = $${idx++}`;
+    params.push(stage);
+  }
   sql += ' ORDER BY latest_contact_date DESC NULLS LAST LIMIT 100';
   const result = await pool.query(sql, params);
-  render(req, res, 'admin/leads', { title: 'Leads', leads: result.rows, search, stage, clientId });
+  render(req, res, 'admin/leads', {
+    title: 'Leads', leads: result.rows, search, stage, clientId
+  });
 });
 
 router.get('/leads/:id', async (req, res) => {
   const lead = await db.getLeadById(req.params.id);
   if (!lead) return res.status(404).send('Lead not found');
   const answers = await db.getLeadAnswers(req.params.id);
-  const history = await pool.query('SELECT * FROM lead_history WHERE lead_id = $1 ORDER BY created_at DESC', [req.params.id]);
+  const history = await pool.query(
+    'SELECT * FROM lead_history WHERE lead_id = $1 ORDER BY created_at DESC',
+    [req.params.id]
+  );
   const timeline = await db.getLeadTimeline(req.params.id);
-  render(req, res, 'admin/lead-detail', { title: `Lead ${lead.lead_id}`, lead, answers, history: history.rows, timeline });
+  render(req, res, 'admin/lead-detail', {
+    title: `Lead ${lead.lead_id}`,
+    lead, answers, history: history.rows, timeline
+  });
 });
 
 // ═══════════════════════════════════════
-// VISITS & CALLBACKS
+// VISITS & CALLBACKS (unchanged)
 // ═══════════════════════════════════════
 
 router.get('/visits', async (req, res) => {
   const clientId = resolveClientId(req);
-  const visitsRes = await pool.query(`SELECT * FROM crm_appointments_view WHERE client_id = $1 ORDER BY created_at DESC LIMIT 100`, [clientId]);
-  const cbRes = await pool.query(`SELECT * FROM crm_callbacks_view WHERE client_id = $1 ORDER BY created_at DESC LIMIT 100`, [clientId]);
-  render(req, res, 'admin/visits-callbacks', { title: 'Visits & Callbacks', visits: visitsRes.rows, callbacks: cbRes.rows, clientId });
+  const visitsRes = await pool.query(
+    `SELECT * FROM crm_appointments_view WHERE client_id = $1 ORDER BY created_at DESC LIMIT 100`,
+    [clientId]
+  );
+  const cbRes = await pool.query(
+    `SELECT * FROM crm_callbacks_view WHERE client_id = $1 ORDER BY created_at DESC LIMIT 100`,
+    [clientId]
+  );
+  render(req, res, 'admin/visits-callbacks', {
+    title: 'Visits & Callbacks',
+    visits: visitsRes.rows,
+    callbacks: cbRes.rows,
+    clientId
+  });
 });
 
 router.post('/visits/:id/update', async (req, res) => {
   const { status, gate_pass_status, visit_outcome, agent_notes } = req.body;
   try {
-    await pool.query(`UPDATE site_visits SET status=$1, gate_pass_status=$2, visit_outcome=$3, agent_notes=$4, updated_at=NOW() WHERE site_visit_id=$5`,
-      [status, gate_pass_status, visit_outcome, agent_notes, req.params.id]);
+    await pool.query(
+      `UPDATE site_visits SET status=$1, gate_pass_status=$2, visit_outcome=$3, agent_notes=$4, updated_at=NOW()
+       WHERE site_visit_id=$5`,
+      [status, gate_pass_status, visit_outcome, agent_notes, req.params.id]
+    );
     redirectWithQuery(res, req, '/admin/visits');
   } catch (err) { res.status(500).send('Error: ' + err.message); }
 });
@@ -504,13 +567,17 @@ router.post('/visits/:id/update', async (req, res) => {
 router.post('/callbacks/:id/update', async (req, res) => {
   const { status } = req.body;
   try {
-    await pool.query(`UPDATE callback_requests SET status=$1, resolved_at=CASE WHEN $1='RESOLVED' THEN NOW() ELSE resolved_at END WHERE callback_request_id=$2`, [status, req.params.id]);
+    await pool.query(
+      `UPDATE callback_requests SET status=$1, resolved_at=CASE WHEN $1='RESOLVED' THEN NOW() ELSE resolved_at END
+       WHERE callback_request_id=$2`,
+      [status, req.params.id]
+    );
     redirectWithQuery(res, req, '/admin/visits');
   } catch (err) { res.status(500).send('Error: ' + err.message); }
 });
 
 // ═══════════════════════════════════════
-// CLIENTS
+// CLIENTS (unchanged)
 // ═══════════════════════════════════════
 
 router.get('/clients', async (req, res, next) => {
@@ -521,7 +588,9 @@ router.get('/clients', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/clients/new', (req, res) => { res.render('admin/client-form', { title: 'New Client', client: null, req }); });
+router.get('/clients/new', (req, res) => {
+  res.render('admin/client-form', { title: 'New Client', client: null, req });
+});
 
 router.post('/clients', async (req, res, next) => {
   try {
@@ -542,7 +611,10 @@ router.get('/clients/:id', async (req, res, next) => {
     const stats = await clientService.getClientStats(req.params.id);
     const activity = await clientService.getClientRecentActivity(req.params.id);
     const allFlows = await db.getFlowsByClient(req.params.id);
-    res.render('admin/client-detail', { title: client.business_name, client, stats, allFlows, ...activity, req });
+    res.render('admin/client-detail', {
+      title: client.business_name,
+      client, stats, allFlows, ...activity, req
+    });
   } catch (err) { next(err); }
 });
 

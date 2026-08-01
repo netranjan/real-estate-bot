@@ -400,3 +400,5 @@ CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
 INSERT INTO node_types (node_type_code, node_type_name, description)
 VALUES ('end_conversation', 'End Conversation', 'Safely ends the WhatsApp conversation')
 ON CONFLICT (node_type_code) DO NOTHING;
+
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS currency_symbol VARCHAR(5) DEFAULT '₹';

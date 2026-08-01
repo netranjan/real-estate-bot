@@ -57,7 +57,7 @@ async function saveReply(lead, config, userInput) {
     throw new Error('collect_input node missing "field" in config');
   }
 
-  // Normalize user input (trim, lower-case)
+  // Normalize user input
   const input = String(userInput).trim();
 
   // If no options defined → accept anything
@@ -66,34 +66,29 @@ async function saveReply(lead, config, userInput) {
     return { valid: true, field, value: input };
   }
 
-  // Try exact match (case‑insensitive, trimmed) against option value
-  const matchedOption = options.find(opt => {
+  // Try exact match (case‑insensitive) against option value
+  const matchedByValue = options.find(opt => {
     const val = String(opt.value || opt).trim();
     return val.toLowerCase() === input.toLowerCase();
   });
-
-  // If still no match, try matching against the label (display name)
-  if (!matchedOption) {
-    const labelMatch = options.find(opt => {
-      const label = String(opt.label || opt.value || opt).trim();
-      return label.toLowerCase() === input.toLowerCase();
-    });
-    if (labelMatch) {
-      // Save the VALUE of the matched label (important for filtering)
-      const valueToSave = String(labelMatch.value || labelMatch.label || labelMatch).trim();
-      await db.saveLeadAnswer(lead.lead_id, field, valueToSave, lead.current_node_id);
-      return { valid: true, field, value: valueToSave };
-    }
-  }
-
-  // If match found by value
-  if (matchedOption) {
-    const valueToSave = String(matchedOption.value || matchedOption).trim();
+  if (matchedByValue) {
+    const valueToSave = String(matchedByValue.value || matchedByValue).trim();
     await db.saveLeadAnswer(lead.lead_id, field, valueToSave, lead.current_node_id);
     return { valid: true, field, value: valueToSave };
   }
 
-  // No match → still reject (but we'll give a clearer hint)
+  // Fallback: try label match
+  const labelMatch = options.find(opt => {
+    const label = String(opt.label || opt.value || opt).trim();
+    return label.toLowerCase() === input.toLowerCase();
+  });
+  if (labelMatch) {
+    const valueToSave = String(labelMatch.value || labelMatch.label || labelMatch).trim();
+    await db.saveLeadAnswer(lead.lead_id, field, valueToSave, lead.current_node_id);
+    return { valid: true, field, value: valueToSave };
+  }
+
+  // No match → reject with hint
   const validExamples = options
     .slice(0, 3)
     .map(o => String(o.label || o.value || o))
