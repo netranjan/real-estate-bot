@@ -154,8 +154,17 @@ async function processMessage(lead, userInput) {
     }
   }
 
-  // Step 3: Find matching edge (exact match first, then default)
-  const edge = await db.getEdgeByInput(currentNode.node_id, userInput);
+  // Step 3: Find matching edge (exact match first, then fallback for property/visit IDs)
+  let edge = await db.getEdgeByInput(currentNode.node_id, userInput);
+
+  // ✅ Long‑term fallback: if the input is a PROPERTY_* or VISIT_* ID and no exact edge
+  //    exists, use the default (null) edge so the flow always advances.
+  if (!edge && (userInput.startsWith('PROPERTY_') || userInput.startsWith('VISIT_'))) {
+    edge = await db.getEdgeByInput(currentNode.node_id, null);
+    if (edge) {
+      console.log(`🔄 Fallback to default edge for input: ${userInput}`);
+    }
+  }
 
   if (!edge) {
     console.log('❌ No matching edge for input:', userInput, 'from node:', currentNode.node_code);

@@ -18,7 +18,6 @@ async function execute(lead, config) {
 
   let items = [];
 
-  // Get lead answers for smart filtering
   const answers = await db.getLeadAnswers(lead.lead_id);
   const answersMap = {};
   for (const a of answers) {
@@ -31,45 +30,37 @@ async function execute(lead, config) {
 
   if (mode === 'filtered') {
     if (matchDimensions.length > 0) {
-      // NEW: Smart auto-filter using lead answers + admin-selected dimensions
       const filtered = await propertyService.getSmartFilteredProperties(
-        lead.client_id,
-        answersMap,
-        matchDimensions
+        lead.client_id, answersMap, matchDimensions
       );
-      items = filtered.map((p) => ({
+      items = filtered.map(p => ({
         id: `PROPERTY_${p.property_id}`,
         title: p.property_name.slice(0, 24),
-        description: `₹${(p.price_min / 100000).toFixed(1)}L - ₹${(p.price_max / 100000).toFixed(1)}L | ${p.possession_date ? new Date(p.possession_date).getFullYear() : 'Ready'}`,
+        description: `₹${(p.price_min / 100000).toFixed(1)}L - ₹${(p.price_max / 100000).toFixed(1)}L | ${p.possession_date ? new Date(p.possession_date).getFullYear() : 'Ready'}`
       }));
     } else if (hasOldConditions) {
-      // BACKWARD COMPAT: Old manual condition rules
       const filtered = await propertyService.getFilteredProperties(
-        lead.client_id,
-        config.filter_conditions,
-        answersMap
+        lead.client_id, config.filter_conditions, answersMap
       );
-      items = filtered.map((p) => ({
+      items = filtered.map(p => ({
         id: `PROPERTY_${p.property_id}`,
         title: p.property_name.slice(0, 24),
-        description: `₹${(p.price_min / 100000).toFixed(1)}L - ₹${(p.price_max / 100000).toFixed(1)}L | ${p.possession_date ? new Date(p.possession_date).getFullYear() : 'Ready'}`,
+        description: `₹${(p.price_min / 100000).toFixed(1)}L - ₹${(p.price_max / 100000).toFixed(1)}L | ${p.possession_date ? new Date(p.possession_date).getFullYear() : 'Ready'}`
       }));
     } else {
-      // No dimensions or conditions set, show all
       const allProps = await db.getPropertiesByClient(lead.client_id);
-      items = allProps.map((p) => ({
+      items = allProps.map(p => ({
         id: `PROPERTY_${p.property_id}`,
         title: p.property_name.slice(0, 24),
-        description: `₹${(p.price_min / 100000).toFixed(1)}L - ₹${(p.price_max / 100000).toFixed(1)}L | ${p.possession_date ? new Date(p.possession_date).getFullYear() : 'Ready'}`,
+        description: `₹${(p.price_min / 100000).toFixed(1)}L - ₹${(p.price_max / 100000).toFixed(1)}L | ${p.possession_date ? new Date(p.possession_date).getFullYear() : 'Ready'}`
       }));
     }
   } else {
-    // Show all active properties
     const allProps = await db.getPropertiesByClient(lead.client_id);
-    items = allProps.map((p) => ({
+    items = allProps.map(p => ({
       id: `PROPERTY_${p.property_id}`,
       title: p.property_name.slice(0, 24),
-      description: `₹${(p.price_min / 100000).toFixed(1)}L - ₹${(p.price_max / 100000).toFixed(1)}L | ${p.possession_date ? new Date(p.possession_date).getFullYear() : 'Ready'}`,
+      description: `₹${(p.price_min / 100000).toFixed(1)}L - ₹${(p.price_max / 100000).toFixed(1)}L | ${p.possession_date ? new Date(p.possession_date).getFullYear() : 'Ready'}`
     }));
   }
 
@@ -84,7 +75,7 @@ async function execute(lead, config) {
 
   const sections = [{
     title: list_title || 'Select',
-    rows: items.map((item) => ({
+    rows: items.map(item => ({
       id: String(item.id),
       title: String(item.title).slice(0, 24),
       description: item.description ? String(item.description).slice(0, 72) : undefined,
