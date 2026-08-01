@@ -57,18 +57,51 @@ async function saveReply(lead, config, userInput) {
     throw new Error('collect_input node missing "field" in config');
   }
 
-  // Validate against predefined options if they exist
-  if (options && Array.isArray(options) && options.length > 0) {
-    const validValues = options.map((o) => String(o.value || o));
-    if (!validValues.includes(userInput)) {
-      return { valid: false, error: 'Invalid option selected' };
+  // Normalize user input (trim, lower-case)
+  const input = String(userInput).trim();
+
+  // If no options defined → accept anything
+  if (!options || !Array.isArray(options) || options.length === 0) {
+    await db.saveLeadAnswer(lead.lead_id, field, input, lead.current_node_id);
+    return { valid: true, field, value: input };
+  }
+
+  // Try exact match (case‑insensitive, trimmed) against option value
+  const matchedOption = options.find(opt => {
+    const val = String(opt.value || opt).trim();
+    return val.toLowerCase() === input.toLowerCase();
+  });
+
+  // If still no match, try matching against the label (display name)
+  if (!matchedOption) {
+    const labelMatch = options.find(opt => {
+      const label = String(opt.label || opt.value || opt).trim();
+      return label.toLowerCase() === input.toLowerCase();
+    });
+    if (labelMatch) {
+      // Save the VALUE of the matched label (important for filtering)
+      const valueToSave = String(labelMatch.value || labelMatch.label || labelMatch).trim();
+      await db.saveLeadAnswer(lead.lead_id, field, valueToSave, lead.current_node_id);
+      return { valid: true, field, value: valueToSave };
     }
   }
 
-  // Save to lead_answers (upserts if same field already exists)
-  await db.saveLeadAnswer(lead.lead_id, field, userInput, lead.current_node_id);
+  // If match found by value
+  if (matchedOption) {
+    const valueToSave = String(matchedOption.value || matchedOption).trim();
+    await db.saveLeadAnswer(lead.lead_id, field, valueToSave, lead.current_node_id);
+    return { valid: true, field, value: valueToSave };
+  }
 
-  return { valid: true, field, value: userInput };
+  // No match → still reject (but we'll give a clearer hint)
+  const validExamples = options
+    .slice(0, 3)
+    .map(o => String(o.label || o.value || o))
+    .join(', ');
+  return {
+    valid: false,
+    error: `Please choose from: ${validExamples}`
+  };
 }
 
 module.exports = {
