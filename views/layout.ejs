@@ -35,19 +35,16 @@
             </option>
           <% }) %>
         </select>
-        <% if (req.query.key) { %>
-          <input type="hidden" name="key" value="<%= req.query.key %>">
-        <% } %>
       </form>
     </div>
     <% } %>
 
     <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
-      <a href="/admin?key=<%= req.query.key || '' %>&clientId=<%= typeof clientId !== 'undefined' ? clientId : '' %>"
+      <a href="/admin?clientId=<%= typeof clientId !== 'undefined' ? clientId : '' %>"
          class="sidebar-link <%= title === 'Dashboard' ? 'active' : '' %> block px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-3">
         <span class="text-lg">📊</span> Dashboard
       </a>
-      <a href="/admin/clients?key=<%= req.query.key || '' %>"
+      <a href="/admin/clients"
          class="sidebar-link <%= title === 'Clients' ? 'active' : '' %> block px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-3">
         <span class="text-lg">🏢</span> Clients
       </a>
@@ -57,19 +54,19 @@
         <div class="pt-2 pb-1 px-4">
           <p class="text-xs text-slate-500 uppercase font-semibold tracking-wider">Client Workspace</p>
         </div>
-        <a href="/admin/properties?key=<%= req.query.key || '' %>&clientId=<%= clientId %>"
+        <a href="/admin/properties?clientId=<%= clientId %>"
            class="sidebar-link <%= title === 'Properties' ? 'active' : '' %> block px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-3">
           <span class="text-lg">🏘️</span> Properties
         </a>
-        <a href="/admin/flows?key=<%= req.query.key || '' %>&clientId=<%= clientId %>"
+        <a href="/admin/flows?clientId=<%= clientId %>"
            class="sidebar-link <%= title === 'Flow Builder' ? 'active' : '' %> block px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-3">
           <span class="text-lg">🔀</span> Flow Builder
         </a>
-        <a href="/admin/leads?key=<%= req.query.key || '' %>&clientId=<%= clientId %>"
+        <a href="/admin/leads?clientId=<%= clientId %>"
            class="sidebar-link <%= title === 'Leads' ? 'active' : '' %> block px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-3">
           <span class="text-lg">👥</span> Leads
         </a>
-        <a href="/admin/visits?key=<%= req.query.key || '' %>&clientId=<%= clientId %>"
+        <a href="/admin/visits?clientId=<%= clientId %>"
            class="sidebar-link <%= title === 'Visits & Callbacks' ? 'active' : '' %> block px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-3">
           <span class="text-lg">📅</span> Visits & Callbacks
         </a>
@@ -80,14 +77,22 @@
       <% } %>
     </nav>
 
+    <!-- User Info & Logout -->
     <div class="p-4 border-t border-slate-700">
-      <div class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-bold">A</div>
-        <div>
-          <p class="text-sm text-white font-medium">Admin</p>
-          <p class="text-xs text-slate-400">Super Admin</p>
+      <% if (typeof currentUser !== 'undefined' && currentUser) { %>
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-bold">
+            <%= (currentUser.displayName || currentUser.username).charAt(0).toUpperCase() %>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm text-white font-medium truncate"><%= currentUser.displayName || currentUser.username %></p>
+            <p class="text-xs text-slate-400"><%= currentUser.role === 'super_admin' ? 'Super Admin' : 'Client User' %></p>
+          </div>
+          <a href="/auth/logout" class="text-slate-400 hover:text-red-400 transition text-lg leading-none" title="Logout">⏻</a>
         </div>
-      </div>
+      <% } else { %>
+        <p class="text-xs text-slate-500">Not logged in</p>
+      <% } %>
     </div>
   </aside>
 
@@ -100,16 +105,18 @@
         <% if (typeof clientId !== 'undefined' && clientId && typeof allClients !== 'undefined') { %>
           <% const currentClient = allClients.find(c => c.client_id == clientId); %>
           <% if (currentClient) { %>
-            <a href="/admin/clients/<%= clientId %>?key=<%= req.query.key || '' %>" class="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-medium hover:bg-slate-200 transition">
+            <a href="/admin/clients/<%= clientId %>" class="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-medium hover:bg-slate-200 transition">
               <%= currentClient.business_name %>
             </a>
           <% } %>
         <% } %>
       </div>
       <div class="flex items-center gap-4">
-        <span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold flex items-center gap-1">
-          <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Online
-        </span>
+        <% if (typeof currentUser !== 'undefined' && currentUser) { %>
+          <span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Online
+          </span>
+        <% } %>
       </div>
     </header>
 

@@ -49,4 +49,11 @@ async function execute(lead, config) {
   return { success: true, type: 'DOCUMENT_SENT', url };
 }
 
-module.exports = { execute };
+module.exports = {
+  execute,
+  defaultConfig: {
+    text: 'Here is your document:',
+    document_url_field: 'selected_property.brochure_url',
+    filename: 'Brochure.pdf'
+  }
+};

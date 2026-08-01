@@ -102,4 +102,12 @@ async function execute(lead, config) {
   return { success: true, type: 'LIST_SENT', item_count: items.length };
 }
 
-module.exports = { execute };
+module.exports = {
+  execute,
+  defaultConfig: {
+    text: 'Here are matching properties:',
+    source_table: 'properties',
+    filter_mode: 'all',
+    match_dimensions: []
+  }
+};

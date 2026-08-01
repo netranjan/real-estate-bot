@@ -30,4 +30,9 @@ async function execute(lead, config) {
   return { success: true, type: 'SCORE_CALCULATED', score };
 }
 
-module.exports = { execute };
+module.exports = {
+  execute,
+  defaultConfig: {
+    text: 'Calculating your score…'
+  }
+};

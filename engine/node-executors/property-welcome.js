@@ -72,4 +72,14 @@ async function execute(lead, config) {
   };
 }
 
-module.exports = { execute };
+module.exports = {
+  execute,
+  defaultConfig: {
+    text: 'Welcome to our project!',
+    buttons: [
+      { id: 'GET_BROCHURE', title: 'Get Brochure' },
+      { id: 'BOOK_VISIT', title: 'Book Site Visit' },
+      { id: 'CALL_ME', title: 'Call Me' }
+    ]
+  }
+};

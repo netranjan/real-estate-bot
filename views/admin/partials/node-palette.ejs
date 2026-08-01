@@ -1,0 +1,30 @@
+<!-- views/admin/partials/node-palette.ejs -->
+<% const typeBtns = [
+  { code: 'question', icon: '❓', label: 'Question', desc: 'Ask a question & save answer' },
+  { code: 'message', icon: '📝', label: 'Message', desc: 'Send a plain message' },
+  { code: 'property_list', icon: '🏠', label: 'Properties', desc: 'Show matching properties' },
+  { code: 'property_welcome', icon: '🏢', label: 'Welcome', desc: 'Property actions' },
+  { code: 'brochure', icon: '📄', label: 'Brochure', desc: 'Send PDF/brochure' },
+  { code: 'book_visit', icon: '📅', label: 'Visit', desc: 'Book site visit' },
+  { code: 'callback', icon: '📞', label: 'Callback', desc: 'Request a callback' },
+  { code: 'end_conversation', icon: '🛑', label: 'End', desc: 'End conversation safely' }
+]; %>
+
+<div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+  <h3 class="font-semibold text-slate-800 text-sm mb-3 flex items-center gap-2">
+    <span>🧩 Step Library</span>
+    <span class="text-[11px] text-slate-400 font-normal">Click to add</span>
+  </h3>
+  <div class="grid grid-cols-2 gap-2">
+    <% typeBtns.forEach(t => { %>
+      <button onclick="openAddWizard('<%= t.code %>')" 
+              class="text-left p-2 border border-slate-200 rounded-lg hover:border-purple-400 hover:bg-purple-50 transition group"
+              title="<%= t.desc %>">
+        <div class="flex items-center gap-2">
+          <span class="text-lg"><%= t.icon %></span>
+          <span class="text-xs font-medium text-slate-700 group-hover:text-purple-700"><%= t.label %></span>
+        </div>
+      </button>
+    <% }) %>
+  </div>
+</div>

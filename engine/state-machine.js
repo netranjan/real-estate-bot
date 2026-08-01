@@ -12,6 +12,7 @@ const EXECUTORS = {
   assign_agent: require('./node-executors/assign-agent'),
   calculate_score: require('./node-executors/calculate-score'),
   property_welcome: require('./node-executors/property-welcome'),
+  end_conversation: require('./node-executors/end-conversation'),
 };
 
 function getExecutor(nodeType) {
@@ -41,6 +42,8 @@ function nodeWaitsForInput(nodeType, config, result) {
     case 'request_callback':
     case 'assign_agent':
     case 'calculate_score':
+      return false;
+    case 'end_conversation':
       return false;
     default:
       return true;

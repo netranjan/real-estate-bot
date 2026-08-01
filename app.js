@@ -12,6 +12,23 @@ app.use(express.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT || 3000;
 
+// ... after const app = express();
+
+// ✅ Add session middleware BEFORE routes
+const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
+
+app.use(session({
+  store: new pgSession({
+    pool: pool,
+    tableName: 'session'   // will auto-create a sessions table
+  }),
+  secret: process.env.SESSION_SECRET || 'your-secret-change-me',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 } // 30 days
+}));
+
 // ── EJS View Engine ──
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -20,6 +37,14 @@ app.set('layout', 'layout');
 
 // ── Serve static files (CSS, JS, images) ──
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ── Auth middleware (set currentUser for all views) ──
+const { setLocals } = require('./middleware/auth');
+app.use(setLocals);
+
+// ── Auth routes (login/logout) ──
+const authRoutes = require('./routes/auth');
+app.use('/auth', authRoutes);
 
 // ── Validate critical env vars ──
 function validateEnv() {

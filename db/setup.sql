@@ -349,3 +349,54 @@ SELECT
 FROM callback_requests cr
 JOIN leads l ON cr.lead_id = l.lead_id
 LEFT JOIN agents a ON cr.assigned_agent_id = a.agent_id;
+
+-- ============================================================
+-- AUTHENTICATION
+-- ============================================================
+CREATE TABLE IF NOT EXISTS users (
+    user_id SERIAL PRIMARY KEY,
+    username VARCHAR(100) NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('super_admin', 'client_user')),
+    client_id INTEGER REFERENCES clients(client_id) ON DELETE SET NULL, -- only for client_user
+    display_name VARCHAR(255),
+    active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create a default Super Admin (password: admin123)
+-- You MUST change this password after first login in production!
+INSERT INTO users (username, password_hash, role, display_name)
+VALUES (
+    'admin',
+    '$2b$10$u4twKaGnv3bRusxWrsjoI.NcSj/KCgcrfCDVMtILTHMWwFXizCgcy',  -- bcrypt hash of 'strongpassword123'
+    'super_admin',
+    'Super Admin'
+) ON CONFLICT (username) DO NOTHING;
+
+-- ============================================================
+-- SESSION STORE (required by connect-pg-simple)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS "session" (
+  "sid" varchar NOT NULL COLLATE "default",
+  "sess" json NOT NULL,
+  "expire" timestamp(6) NOT NULL
+);
+
+-- Primary key (use DO block to avoid error if already exists)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'session_pkey'
+  ) THEN
+    ALTER TABLE "session" ADD CONSTRAINT "session_pkey" PRIMARY KEY ("sid");
+  END IF;
+END
+$$;
+
+-- Index on expire for cleanup
+CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+
+INSERT INTO node_types (node_type_code, node_type_name, description)
+VALUES ('end_conversation', 'End Conversation', 'Safely ends the WhatsApp conversation')
+ON CONFLICT (node_type_code) DO NOTHING;

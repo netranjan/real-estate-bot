@@ -71,4 +71,15 @@ async function saveReply(lead, config, userInput) {
   return { valid: true, field, value: userInput };
 }
 
-module.exports = { execute, saveReply };
+module.exports = {
+  execute,
+  saveReply,
+  defaultConfig: {
+    text: 'Please choose an option:',
+    options: [
+      { label: 'Option 1', value: 'Option 1' },
+      { label: 'Option 2', value: 'Option 2' }
+    ],
+    field: 'answer'
+  }
+};

@@ -1,0 +1,79 @@
+<div class="space-y-6 fade-in">
+  <!-- Header -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <div class="flex justify-between items-start flex-wrap gap-4">
+      <div>
+        <h2 class="text-2xl font-bold text-slate-800"><%= property.property_name %></h2>
+        <p class="text-sm text-slate-500">Property ID: <span class="font-mono text-xs"><%= property.property_id %></span></p>
+      </div>
+      <div class="flex gap-2">
+        <a href="/admin/properties/<%= property.property_id %>/slots?clientId=<%= clientId %>" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+          🕒 Manage Slots
+        </a>
+        <a href="/admin/properties?clientId=<%= clientId %>" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">← Back to Properties</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Property Details -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <h3 class="text-lg font-semibold text-slate-800 mb-4">Details</h3>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div>
+        <p class="text-xs text-slate-500 uppercase font-semibold">Price Range</p>
+        <p class="text-sm text-slate-700 mt-1">
+          <%= property.price_min ? '₹' + property.price_min.toLocaleString('en-IN') : '-' %>
+          <%= property.price_max ? ' - ₹' + property.price_max.toLocaleString('en-IN') : '' %>
+        </p>
+      </div>
+      <div>
+        <p class="text-xs text-slate-500 uppercase font-semibold">Configurations</p>
+        <p class="text-sm text-slate-700 mt-1"><%= property.configuration_types ? property.configuration_types.join(', ') : 'Not specified' %></p>
+      </div>
+      <div>
+        <p class="text-xs text-slate-500 uppercase font-semibold">Possession Date</p>
+        <p class="text-sm text-slate-700 mt-1"><%= property.possession_date ? new Date(property.possession_date).toLocaleDateString('en-IN') : 'Not set' %></p>
+      </div>
+      <div>
+        <p class="text-xs text-slate-500 uppercase font-semibold">Referral Code</p>
+        <p class="font-mono text-sm text-slate-700 mt-1"><%= property.referral_code || 'Not set' %></p>
+      </div>
+      <div>
+        <p class="text-xs text-slate-500 uppercase font-semibold">Google Maps</p>
+        <p class="text-sm text-slate-700 mt-1">
+          <% if (property.google_map_url) { %>
+            <a href="<%= property.google_map_url %>" target="_blank" class="text-blue-600 hover:underline">View on Map</a>
+          <% } else { %> Not set <% } %>
+        </p>
+      </div>
+      <div>
+        <p class="text-xs text-slate-500 uppercase font-semibold">Brochure</p>
+        <p class="text-sm text-slate-700 mt-1">
+          <% if (property.brochure_url) { %>
+            <a href="<%= property.brochure_url %>" target="_blank" class="text-blue-600 hover:underline">Download</a>
+          <% } else { %> Not set <% } %>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Welcome Message -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <h3 class="text-lg font-semibold text-slate-800 mb-2">Welcome Message</h3>
+    <p class="text-sm text-slate-600 whitespace-pre-wrap"><%= property.welcome_message || 'Not set' %></p>
+  </div>
+
+  <!-- Slots Summary -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <h3 class="text-lg font-semibold text-slate-800 mb-4">Visit Slots</h3>
+    <% if (slots && slots.length) { %>
+      <div class="flex flex-wrap gap-2">
+        <% slots.forEach(slot => { %>
+          <span class="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-medium"><%= slot.option_name %></span>
+        <% }) %>
+      </div>
+    <% } else { %>
+      <p class="text-sm text-slate-400">No slots defined. <a href="/admin/properties/<%= property.property_id %>/slots?clientId=<%= clientId %>" class="text-purple-600 hover:underline">Add some</a>.</p>
+    <% } %>
+  </div>
+</div>

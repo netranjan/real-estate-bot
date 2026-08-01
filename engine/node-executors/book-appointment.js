@@ -59,4 +59,10 @@ async function saveReply(lead, config, userInput) {
   return { valid: true, visit_id: visit.site_visit_id };
 }
 
-module.exports = { execute, saveReply };
+module.exports = {
+  execute,
+  saveReply,
+  defaultConfig: {
+    text: 'Choose a visit slot:'
+  }
+};

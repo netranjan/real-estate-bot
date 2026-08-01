@@ -12,10 +12,9 @@
   <!-- Add Property Form -->
   <div id="add-form" class="hidden bg-white rounded-xl shadow-sm border border-slate-200 p-6">
     <h3 class="font-bold text-slate-800 mb-4">Add New Property</h3>
-    <form action="/admin/properties?key=<%= req.query.key || '' %>&clientId=<%= clientId %>" method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <input type="hidden" name="key" value="<%= req.query.key || '' %>">
+    <form action="/admin/properties?clientId=<%= clientId %>" method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <input type="hidden" name="clientId" value="<%= clientId %>">
-      
+
       <div class="md:col-span-2">
         <label class="block text-sm font-medium text-slate-700 mb-1">Property Name</label>
         <input type="text" name="property_name" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
@@ -117,8 +116,12 @@
 
             <div class="flex gap-2">
               <button onclick="toggleEdit(<%= prop.property_id %>)" class="flex-1 text-sm bg-slate-100 hover:bg-slate-200 py-2 rounded-lg font-medium transition">Edit</button>
-              <form action="/admin/properties/<%= prop.property_id %>/delete?key=<%= req.query.key || '' %>&clientId=<%= clientId %>" method="POST" class="inline" onsubmit="return confirm('Delete this property?');">
-                <input type="hidden" name="key" value="<%= req.query.key || '' %>">
+              <!-- New: Manage Slots link -->
+              <a href="/admin/properties/<%= prop.property_id %>/slots?clientId=<%= clientId %>" 
+                 class="flex-1 text-sm bg-purple-50 hover:bg-purple-100 py-2 rounded-lg font-medium text-center text-purple-700 border border-purple-200 transition">
+                🕒 Slots
+              </a>
+              <form action="/admin/properties/<%= prop.property_id %>/delete?clientId=<%= clientId %>" method="POST" class="inline" onsubmit="return confirm('Delete this property?');">
                 <input type="hidden" name="clientId" value="<%= clientId %>">
                 <button type="submit" class="px-3 py-2 bg-slate-100 hover:bg-red-100 text-red-600 rounded-lg transition">🗑️</button>
               </form>
@@ -129,8 +132,7 @@
         <!-- Edit Mode -->
         <div id="prop-edit-<%= prop.property_id %>" class="hidden p-5">
           <h4 class="font-bold text-slate-800 mb-4">Edit <%= prop.property_name %></h4>
-          <form action="/admin/properties/<%= prop.property_id %>/update?key=<%= req.query.key || '' %>&clientId=<%= clientId %>" method="POST" class="space-y-3">
-            <input type="hidden" name="key" value="<%= req.query.key || '' %>">
+          <form action="/admin/properties/<%= prop.property_id %>/update?clientId=<%= clientId %>" method="POST" class="space-y-3">
             <input type="hidden" name="clientId" value="<%= clientId %>">
             
             <div>

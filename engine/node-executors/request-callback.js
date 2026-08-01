@@ -59,4 +59,10 @@ async function execute(lead, config) {
   return { success: true, type: 'CALLBACK_REQUESTED', callback_id: callback.callback_request_id };
 }
 
-module.exports = { execute };
+module.exports = {
+  execute,
+  defaultConfig: {
+    text: 'We will call you back shortly.',
+    sla_minutes: 15
+  }
+};

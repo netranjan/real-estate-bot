@@ -1,896 +1,561 @@
 <style>
-  /* ── Flow timeline connector ── */
-  .flow-connector {
-    position: relative;
-    padding-left: 0;
-  }
-
-  .flow-connector::before {
-    content: '';
-    position: absolute;
-    left: 24px;
-    top: 0;
-    bottom: 40px;
-    width: 2px;
-    background: #e2e8f0;
-    z-index: 0;
-  }
-
-  /* ── Step cards ── */
-  .step-card {
-    position: relative;
-    z-index: 1;
-    background: #fff;
-    border-radius: 0.75rem;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-    transition: box-shadow 0.2s, transform 0.2s;
-  }
-
-  .step-card:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  }
-
-  /* ── Connection arrows ── */
-  .conn-arrow {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: #f1f5f9;
-    color: #94a3b8;
-    flex-shrink: 0;
-  }
-
-  .conn-arrow.active {
-    background: #10b981;
-    color: #fff;
-  }
-
-  .conn-arrow.danger {
-    background: #ef4444;
-    color: #fff;
-  }
-
-  .conn-arrow.pending {
-    background: #f59e0b;
-    color: #fff;
-  }
-
-  /* ── Tooltip ── */
-  [data-tooltip] {
-    position: relative;
-    cursor: help;
-  }
-
-  [data-tooltip]::after {
-    content: attr(data-tooltip);
-    position: absolute;
-    bottom: calc(100% + 6px);
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 4px 10px;
-    background: #1e293b;
-    color: #fff;
-    font-size: 11px;
-    border-radius: 6px;
-    white-space: nowrap;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s;
-    z-index: 50;
-  }
-
-  [data-tooltip]:hover::after {
-    opacity: 1;
-  }
-
-  /* ── Pulse animations ── */
-  .pulse-ring {
-    animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
-  }
-
-  @keyframes pulse-ring {
-    0% {
-      transform: scale(0.8);
-      opacity: 0.8;
-    }
-
-    100% {
-      transform: scale(2.4);
-      opacity: 0;
-    }
-  }
-
-  .start-pulse {
-    position: relative;
-  }
-
-  .start-pulse::before {
-    content: '';
-    position: absolute;
-    inset: -6px;
-    border-radius: 50%;
-    border: 2px solid #10b981;
-    animation: pulse-ring 2s infinite;
-  }
-
-  /* ── Sortable ghost ── */
-  .sortable-ghost {
-    opacity: 0.4;
-    background: #f3e8ff;
-    border: 2px dashed #a855f7;
-  }
-
-  .sortable-drag {
-    opacity: 0.8;
-    transform: rotate(2deg);
-  }
+  .step-row { background:#fff; border:1px solid #e2e8f0; border-radius:0.75rem; transition:box-shadow 0.2s; }
+  .step-row:hover { box-shadow:0 4px 12px rgba(0,0,0,0.05); }
+  .conn-tag { display:inline-flex; align-items:center; gap:4px; background:#f1f5f9; border-radius:6px; padding:2px 8px; font-size:11px; color:#475569; }
+  .sortable-ghost { opacity:0.4; background:#f3e8ff; border:2px dashed #a855f7; }
+  .sortable-drag { opacity:0.8; transform:rotate(1deg); }
+  .option-row { display:flex; gap:8px; align-items:center; margin-bottom:6px; }
+  .option-row input { flex:1; }
+  .remove-option { cursor:pointer; color:#ef4444; font-weight:bold; flex-shrink:0; }
+  .add-option-btn { font-size:12px; color:#7c3aed; cursor:pointer; }
+  .media-row { display:flex; gap:8px; align-items:center; margin-bottom:6px; }
+  .media-row input, .media-row select { flex:1; }
 </style>
 
-<% const typeMeta={ question: { icon: '❓' , color: 'purple' , label: 'Question' }, message: { icon: '📝' , color: 'blue'
-  , label: 'Message' }, property_list: { icon: '🏠' , color: 'green' , label: 'Property List' }, property_welcome:{
-  icon: '🏢' , color: 'indigo' ,label: 'Welcome' }, brochure: { icon: '📄' , color: 'orange' , label: 'Brochure' },
-  book_visit: { icon: '📅' , color: 'pink' , label: 'Book Visit' }, callback: { icon: '📞' , color: 'teal' ,
-  label: 'Callback' } }; %>
+<%
+const typeMeta = {
+  collect_input: { icon:'❓', color:'purple', label:'Question' },
+  send_message: { icon:'📝', color:'blue', label:'Message' },
+  show_list: { icon:'🏠', color:'green', label:'Property List' },
+  property_welcome: { icon:'🏢', color:'indigo', label:'Welcome' },
+  send_document: { icon:'📄', color:'orange', label:'Media / Brochure' },
+  book_appointment: { icon:'📅', color:'pink', label:'Book Visit' },
+  request_callback: { icon:'📞', color:'teal', label:'Callback' },
+  end_conversation: { icon:'🛑', color:'red', label:'End' },
+  assign_agent: { icon:'👤', color:'gray', label:'Assign Agent' },
+  calculate_score: { icon:'⭐', color:'yellow', label:'Score' }
+};
+%>
 
-  <div class="min-h-screen bg-slate-50">
-    <div class="max-w-5xl mx-auto px-4 py-8">
+<div class="min-h-screen bg-slate-50">
+  <div class="max-w-4xl mx-auto px-4 py-8">
 
-      <!-- Header -->
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-        <div>
-          <h1 class="text-2xl font-bold text-slate-800">Flow Builder</h1>
-          <p class="text-sm text-slate-500 mt-1">Design your WhatsApp conversation flow</p>
+    <!-- Header (unchanged) -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-800">Flow Builder</h1>
+        <p class="text-sm text-slate-500 mt-1">Design your WhatsApp conversation flow</p>
+      </div>
+      <div class="flex items-center gap-3 flex-wrap">
+        <form method="GET" action="/admin/flows" class="flex items-center gap-2">
+          <input type="hidden" name="clientId" value="<%= clientId %>">
+          <select name="flowId" onchange="this.form.submit()"
+                  class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-purple-500 outline-none min-w-[200px]">
+            <option value="">-- Select a flow --</option>
+            <% flows.forEach(f => { %>
+              <option value="<%= f.flow_id %>" <%= (activeFlow && activeFlow.flow_id == f.flow_id) ? 'selected' : '' %>>
+                <%= f.flow_name %> <%= f.is_active ? '✅' : '' %>
+              </option>
+            <% }) %>
+          </select>
+        </form>
+        <button onclick="toggleNewFlow()" class="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium">+ New Flow</button>
+        <div id="new-flow-form" class="hidden flex items-center gap-2">
+          <form action="/admin/flows" method="POST" class="flex items-center gap-2">
+            <input type="hidden" name="clientId" value="<%= clientId %>">
+            <input type="text" name="flow_name" placeholder="Flow name" required class="px-3 py-2 border border-slate-300 rounded-lg text-sm w-40 focus:ring-2 focus:ring-purple-500 outline-none">
+            <button type="submit" class="px-3 py-2 bg-purple-600 text-white rounded-lg text-sm">Create</button>
+          </form>
         </div>
         <% if (activeFlow) { %>
-          <div class="flex items-center gap-3">
-            <div class="text-sm text-slate-600 bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm">
-              Editing: <span class="font-semibold text-purple-700">
-                <%= activeFlow.flow_name || activeFlow.name || 'Untitled Flow' %>
-              </span>
-            </div>
+          <div class="flex items-center gap-2">
+            <% if (!activeFlow.is_active) { %>
+              <form action="/admin/flows/<%= activeFlow.flow_id %>/activate" method="POST" class="inline">
+                <input type="hidden" name="clientId" value="<%= clientId %>">
+                <button type="submit" class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">Activate</button>
+              </form>
+            <% } else { %>
+              <span class="px-3 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-medium">Active</span>
+            <% } %>
+            <form action="/admin/flows/<%= activeFlow.flow_id %>/clone" method="POST" class="inline">
+              <input type="hidden" name="clientId" value="<%= clientId %>">
+              <button type="submit" class="px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm hover:bg-purple-50">📋 Clone</button>
+            </form>
+            <form action="/admin/flows/<%= activeFlow.flow_id %>/delete" method="POST" class="inline"
+                  onsubmit="return confirm('Delete this flow?')">
+              <input type="hidden" name="clientId" value="<%= clientId %>">
+              <button type="submit" class="px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm hover:border-red-400 hover:text-red-600">🗑️ Delete</button>
+            </form>
           </div>
-          <% } %>
-      </div>
-
-      <!-- Flow selector -->
-      <% if (flows && flows.length) { %>
-        <div class="mb-6">
-          <select onchange="window.location.href='?key='+this.value+'&clientId=<%= clientId %>'"
-            class="px-4 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-purple-500 outline-none shadow-sm min-w-[260px]">
-            <option value="">Select a flow…</option>
-            <% flows.forEach(f=> { %>
-              <option value="<%= f.flow_key || f.key %>" <%=(activeFlow && activeFlow.flow_key===(f.flow_key || f.key))
-                ? 'selected' : '' %>>
-                <%= f.flow_name || f.name || f.flow_key || f.key %>
-              </option>
-              <% }) %>
-          </select>
-        </div>
         <% } %>
-
-          <% if (activeFlow) { %>
-            <!-- Timeline -->
-            <div class="flow-connector pb-8" id="sortable-steps">
-
-              <% steps.forEach((step, idx)=> {
-                const meta = typeMeta[step.node_type] || typeMeta.message;
-                const config = step.config || {};
-                const isOrphan = (!step.connections || step.connections.length === 0) && idx !== steps.length - 1;
-                %>
-
-                <div class="step-card mb-5 ml-12 relative" data-node-id="<%= step.node_id %>"
-                  data-filter-mode="<%= config.mode || '' %>"
-                  data-match-dimensions="<%= encodeURIComponent(JSON.stringify(config.match_dimensions || [])) %>"
-                  data-save-field="<%= config.field || '' %>">
-
-                  <!-- Drag handle -->
-                  <div
-                    class="handle absolute -left-10 top-4 cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100 transition"
-                    data-tooltip="Drag to reorder">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
-                    </svg>
-                  </div>
-
-                  <!-- Start pulse for first step -->
-                  <% if (idx===0) { %>
-                    <div class="absolute -left-[52px] top-4">
-                      <div
-                        class="start-pulse w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-lg z-10 relative">
-                        GO
-                      </div>
-                    </div>
-                    <% } %>
-
-                      <!-- Card body -->
-                      <div class="p-5">
-                        <div class="flex items-start justify-between gap-4">
-                          <div class="flex items-start gap-3 min-w-0 flex-1">
-                            <!-- Icon -->
-                            <div
-                              class="w-10 h-10 rounded-lg bg-<%= meta.color %>-100 text-<%= meta.color %>-600 flex items-center justify-center text-lg flex-shrink-0 border border-<%= meta.color %>-200">
-                              <%= meta.icon %>
-                            </div>
-
-                            <!-- Content -->
-                            <div class="min-w-0 flex-1">
-                              <!-- Badges row -->
-                              <div class="flex items-center gap-2 flex-wrap mb-1">
-                                <span
-                                  class="text-[10px] font-bold uppercase tracking-wider text-<%= meta.color %>-700 bg-<%= meta.color %>-50 px-2 py-0.5 rounded border border-<%= meta.color %>-100">
-                                  <%= meta.label %>
-                                </span>
-
-                                <% if (step.node_type==='property_list' ) { %>
-                                  <% if (config.mode==='filtered' ) { %>
-                                    <span
-                                      class="text-[10px] bg-purple-50 text-purple-700 px-2 py-0.5 rounded border border-purple-200 font-medium">🔍
-                                      Filtered</span>
-                                    <% } else { %>
-                                      <span
-                                        class="text-[10px] bg-green-50 text-green-700 px-2 py-0.5 rounded border border-green-200 font-medium">🏠
-                                        All Properties</span>
-                                      <% } %>
-                                        <% } %>
-
-                                          <% if (config.match_dimensions && config.match_dimensions.length) { %>
-                                            <span
-                                              class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium"
-                                              title="Matching dimensions">
-                                              📊 <%= config.match_dimensions.join(', ') %>
-                    </span>
-                  <% } %>
-
-                  <% if (isOrphan) { %>
-                    <span class="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded border border-amber-200 font-medium" data-tooltip="This step has no outgoing connections">
-                      ⚠️ Orphan
-                    </span>
-                  <% } %>
-
-                  <% if (config.field) { %>
-                    <span class="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-200 font-medium" title="Saved field">
-                      💾 <%= config.field %>
-                    </span>
-                  <% } %>
-                </div>
-
-                <!-- Name -->
-                <h3 class="font-semibold text-slate-800 text-sm leading-tight"><%= step.step_name || ' Untitled Step'
-                                                %>
-                                                </h3>
-
-                                                <!-- Message preview -->
-                                                <% if (step.message_text) { %>
-                                                  <p
-                                                    class="text-sm text-slate-500 mt-1.5 whitespace-pre-wrap leading-relaxed">
-                                                    <%= step.message_text %>
-                                                  </p>
-                                                  <% } %>
-
-                                                    <!-- Options / Buttons preview -->
-                                                    <% let displayOpts=[]; if (step.options) { try { const
-                                                      parsed=JSON.parse(step.options); if (Array.isArray(parsed))
-                                                      displayOpts=parsed; else if (parsed.mode) { // property_list config object — don't render as buttons
-                                                     } else if (typeof
-                                                      parsed==='object' ) { displayOpts=Object.values(parsed).filter(v=>
-                                                      typeof v === 'string');
-                                                      }
-                                                      } catch(e) {
-                                                      displayOpts = step.options.split('\n').map(l =>
-                                                      l.trim()).filter(Boolean);
-                                                      }
-                                                      }
-                                                      if (displayOpts.length) {
-                                                      %>
-                                                      <div class="flex flex-wrap gap-1.5 mt-2.5">
-                                                        <% displayOpts.forEach(opt=> { %>
-                                                          <span
-                                                            class="px-2.5 py-1 bg-white border border-slate-200 rounded-md text-xs text-slate-700 shadow-sm">
-                                                            <%= opt %>
-                                                          </span>
-                                                          <% }) %>
-                                                      </div>
-                                                      <% } %>
-                              </div>
-                            </div>
-
-                            <!-- Actions -->
-                            <div class="flex items-center gap-2 flex-shrink-0">
-                              <button onclick="openEditWizard(<%= step.node_id %>)"
-                                class="text-xs px-3 py-1.5 bg-white border border-slate-300 hover:border-purple-400 hover:text-purple-700 text-slate-600 rounded-lg transition shadow-sm font-medium">
-                                Edit
-                              </button>
-                              <form
-                                action="/admin/flows/steps/<%= step.node_id %>/delete?key=<%= req.query.key || '' %>&clientId=<%= clientId %>"
-                                method="POST" class="inline"
-                                onsubmit="return confirm('Delete this step? This cannot be undone.')">
-                                <button type="submit"
-                                  class="text-xs px-3 py-1.5 bg-white border border-slate-300 hover:border-red-400 hover:text-red-600 text-slate-600 rounded-lg transition shadow-sm font-medium">
-                                  Delete
-                                </button>
-                              </form>
-                            </div>
-                          </div>
-
-                          <!-- Connections section -->
-                          <div class="mt-5 pt-4 border-t border-slate-100">
-                            <div class="flex items-center gap-2 mb-3">
-                              <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Then what
-                                happens?</span>
-                              <% if (step.connections && step.connections.length) { %>
-                                <span class="text-[11px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
-                                  <%= step.connections.length %>
-                                </span>
-                                <% } %>
-                            </div>
-
-                            <% if (step.connections && step.connections.length) { %>
-                              <div class="space-y-2">
-                                <% step.connections.forEach(conn=> { %>
-                                  <div class="flex items-center gap-3 text-sm group">
-                                    <span class="conn-arrow <%= conn.target_id ? 'active' : 'danger' %>">
-                                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                          d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                                      </svg>
-                                    </span>
-                                    <span class="text-slate-600 flex items-center gap-2 flex-wrap">
-                                      <% if (conn.condition) { %>
-                                        <span
-                                          class="font-medium text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded text-xs">"
-                                          <%= conn.condition %>"
-                                        </span>
-                                        <span class="text-slate-300">→</span>
-                                        <% } %>
-                                          <% if (conn.target_id) { %>
-                                            <span class="text-purple-700 font-medium">
-                                              <%= conn.target_name || 'Step #' + conn.target_id %>
-                                            </span>
-                                            <% } else { %>
-                                              <span class="text-red-500 italic text-xs">No target configured</span>
-                                              <% } %>
-                                    </span>
-                                    <form
-                                      action="/admin/flows/connections/<%= conn.connection_id %>/delete?key=<%= req.query.key || '' %>&clientId=<%= clientId %>"
-                                      method="POST" class="inline ml-auto opacity-0 group-hover:opacity-100 transition"
-                                      onsubmit="return confirm('Remove this connection?')">
-                                      <button type="submit"
-                                        class="text-[11px] text-slate-400 hover:text-red-500 transition">Remove</button>
-                                    </form>
-                                  </div>
-                                  <% }) %>
-                              </div>
-                              <% } else { %>
-                                <p class="text-sm text-slate-400 italic pl-7">No connections yet. Use Quick Connect
-                                  below.</p>
-                                <% } %>
-
-                                  <!-- Quick Connect -->
-                                  <div class="mt-3 pl-7">
-                                    <button onclick="toggleQuickConnect(<%= step.node_id %>)"
-                                      class="text-xs text-purple-600 hover:text-purple-700 font-semibold flex items-center gap-1 transition">
-                                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                          d="M12 4v16m8-8H4" />
-                                      </svg>
-                                      Quick Connect
-                                    </button>
-                                    <div id="qc-<%= step.node_id %>"
-                                      class="hidden mt-3 bg-slate-50 rounded-lg p-3 border border-slate-200">
-                                      <form
-                                        action="/admin/flows/connections?key=<%= req.query.key || '' %>&clientId=<%= clientId %>"
-                                        method="POST" class="space-y-2">
-                                        <input type="hidden" name="source_id" value="<%= step.node_id %>">
-                                        <div class="flex gap-2">
-                                          <select name="target_id" required
-                                            class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-purple-500 outline-none">
-                                            <option value="">Select target step…</option>
-                                            <% steps.forEach(t=> { if (t.node_id !== step.node_id) { %>
-                                              <option value="<%= t.node_id %>">
-                                                <%= t.step_name || 'Step #' + t.node_id %> (<%=
-                                                    typeMeta[t.node_type]?.label || t.node_type %>)
-                                              </option>
-                                              <% } }) %>
-                                          </select>
-                                          <input type="text" name="condition" placeholder="Condition (optional)"
-                                            class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 outline-none">
-                                        </div>
-                                        <div class="flex gap-2">
-                                          <select name="action_type"
-                                            onchange="toggleActionField(this, <%= step.node_id %>)"
-                                            class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-purple-500 outline-none">
-                                            <option value="">No action</option>
-                                            <option value="save_answer">Save Answer</option>
-                                            <option value="score_lead">Score Lead</option>
-                                          </select>
-                                          <div id="af-box-<%= step.node_id %>" class="hidden flex-1 flex gap-2">
-                                            <select id="af-select-<%= step.node_id %>"
-                                              onchange="onFieldSelectChange(this, <%= step.node_id %>)"
-                                              class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-purple-500 outline-none">
-                                              <option value="">Select field…</option>
-                                              <option value="budget">budget</option>
-                                              <option value="configuration">configuration</option>
-                                              <option value="requirement_type">requirement_type</option>
-                                              <option value="timeline">timeline</option>
-                                              <option value="location">location</option>
-                                              <option value="possession">possession</option>
-                                              <option value="__custom__">Custom…</option>
-                                            </select>
-                                            <input type="text" id="af-<%= step.node_id %>" name="action_field"
-                                              class="hidden flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 outline-none"
-                                              placeholder="Field name">
-                                          </div>
-                                        </div>
-                                        <button type="submit"
-                                          class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-1.5 rounded-lg text-xs font-medium shadow-sm transition">
-                                          Add Connection
-                                        </button>
-                                      </form>
-                                    </div>
-                                  </div>
-                          </div>
-                        </div>
-                      </div>
-                      <% }) %>
-                </div>
-
-                <!-- Add Step Button -->
-                <div class="ml-12 mt-2">
-                  <button onclick="openAddWizard()"
-                    class="w-full py-4 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 hover:border-purple-400 hover:text-purple-600 hover:bg-purple-50 transition flex items-center justify-center gap-2 font-medium text-sm">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                    </svg>
-                    + Add a new step
-                  </button>
-                </div>
-
-                <% } else { %>
-                  <!-- Empty state -->
-                  <div class="text-center py-20 bg-white rounded-xl border border-slate-200 shadow-sm">
-                    <div class="text-4xl mb-3">🏗️</div>
-                    <h3 class="text-lg font-semibold text-slate-700 mb-1">No flow selected</h3>
-                    <p class="text-sm text-slate-500">Select or create a flow to start building your conversation.</p>
-                  </div>
-                  <% } %>
-
-            </div>
-    </div>
-    <!-- ── Step Modal (Single Page) ── -->
-    <div id="step-modal" class="fixed inset-0 bg-black/50 hidden z-50 flex justify-end">
-      <div class="bg-white w-full max-w-3xl h-full overflow-auto shadow-2xl flex flex-col">
-
-        <!-- Header -->
-        <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 flex-shrink-0">
-          <h3 class="font-bold text-slate-800 text-lg" id="modal-title">Add Step</h3>
-          <button onclick="closeModal()"
-            class="text-slate-400 hover:text-slate-600 text-2xl leading-none px-2 py-1 transition">&times;</button>
-        </div>
-
-        <!-- Body -->
-        <div class="flex-1 p-6 space-y-5 overflow-auto">
-
-          <!-- Step Type Picker -->
-          <div>
-            <label class="block text-sm font-semibold text-slate-700 mb-2">What should this step do?</label>
-            <div class="grid grid-cols-4 sm:grid-cols-7 gap-2">
-              <% const typeBtns=[ { code: 'question' , icon: '❓' , label: 'Question' }, { code: 'message' , icon: '📝' ,
-                label: 'Message' }, { code: 'property_list' , icon: '🏠' , label: 'Properties' }, {
-                code: 'property_welcome' , icon: '🏢' , label: 'Welcome' }, { code: 'brochure' , icon: '📄' ,
-                label: 'Brochure' }, { code: 'book_visit' , icon: '📅' , label: 'Visit' }, { code: 'callback' ,
-                icon: '📞' , label: 'Callback' } ]; %>
-                <% typeBtns.forEach(t=> { %>
-                  <button type="button" onclick="setStepType('<%= t.code %>')" data-type="<%= t.code %>"
-                    class="type-btn border-2 border-slate-200 rounded-lg p-2 text-center hover:border-purple-400 hover:bg-purple-50 transition">
-                    <div class="text-xl mb-1">
-                      <%= t.icon %>
-                    </div>
-                    <div class="text-[11px] font-medium text-slate-700">
-                      <%= t.label %>
-                    </div>
-                  </button>
-                  <% }) %>
-            </div>
-          </div>
-
-          <!-- Step Name -->
-          <div>
-            <label class="block text-sm font-semibold text-slate-700 mb-1">
-              Step Name <span class="text-slate-400 font-normal text-xs">(auto-filled from message)</span>
-            </label>
-            <input type="text" id="step-name" placeholder="e.g. Ask Budget"
-              class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm transition">
-          </div>
-
-          <!-- Bot Message -->
-          <div>
-            <label class="block text-sm font-semibold text-slate-700 mb-1">Bot Message</label>
-            <textarea id="step-message" rows="3" placeholder="Type what the bot should say…"
-              class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm transition resize-y"></textarea>
-
-            <!-- WhatsApp Preview -->
-            <div class="mt-3 bg-[#e5ddd5] rounded-2xl p-4 max-w-sm mx-auto border border-slate-200">
-              <div class="bg-white rounded-lg rounded-tl-none px-3 py-2 shadow-sm max-w-[85%]">
-                <p class="text-sm text-slate-800" id="preview-msg">Type above to see preview…</p>
-              </div>
-              <div class="flex flex-wrap gap-1.5 mt-2 max-w-[85%]" id="preview-opts"></div>
-            </div>
-          </div>
-
-          <!-- Question Options -->
-          <div id="box-question" class="hidden space-y-3">
-            <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-1">
-                Button Options <span class="text-slate-400 font-normal text-xs">(one per line)</span>
-              </label>
-              <textarea id="step-options" rows="3" placeholder="Under ₹50 Lakhs&#10;₹50L - ₹1 Crore&#10;Above ₹1 Crore"
-                class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm font-mono transition resize-y"></textarea>
-            </div>
-            <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
-              <label class="block text-xs font-semibold text-slate-600 mb-1">Save user's answer as:</label>
-              <select id="save-field"
-                class="w-full px-2 py-1.5 border border-slate-300 rounded text-xs bg-white focus:ring-2 focus:ring-purple-500 outline-none transition">
-                <option value="">Don't save</option>
-                <option value="budget">💰 budget</option>
-                <option value="configuration">🏠 configuration</option>
-                <option value="requirement_type">🎯 requirement_type</option>
-                <option value="timeline">📅 timeline</option>
-                <option value="location">📍 location</option>
-                <option value="possession">🔑 possession</option>
-              </select>
-              <p class="text-xs text-slate-400 mt-1">This lets you filter properties later based on this answer.</p>
-            </div>
-          </div>
-
-          <!-- Property List Filter -->
-          <div id="box-property_list" class="hidden space-y-3">
-            <label class="block text-sm font-semibold text-slate-700">Which properties to show?</label>
-            <div class="space-y-2">
-              <label
-                class="flex items-start gap-3 p-3 border-2 border-slate-200 rounded-xl cursor-pointer hover:border-green-400 hover:bg-green-50 transition">
-                <input type="radio" name="list-mode" value="all" checked class="mt-0.5 w-4 h-4 text-green-600"
-                  onchange="toggleMatchBox()">
-                <div>
-                  <p class="text-sm font-semibold text-slate-800">🏠 Show ALL active properties</p>
-                  <p class="text-xs text-slate-500">Ignore lead answers. Show everything.</p>
-                </div>
-              </label>
-              <label
-                class="flex items-start gap-3 p-3 border-2 border-slate-200 rounded-xl cursor-pointer hover:border-purple-400 hover:bg-purple-50 transition">
-                <input type="radio" name="list-mode" value="filtered" class="mt-0.5 w-4 h-4 text-purple-600"
-                  onchange="toggleMatchBox()">
-                <div class="flex-1">
-                  <p class="text-sm font-semibold text-slate-800">🔍 Smart Match — Filter by lead answers</p>
-                  <p class="text-xs text-slate-500 mb-2">Only show properties that fit what the lead already told you.
-                  </p>
-                  <div id="match-dimensions" class="hidden space-y-2 ml-6">
-                    <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                      <input type="checkbox" value="budget_range"
-                        class="match-dim w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500">
-                      <span>💰 Match Budget Range</span>
-                    </label>
-                    <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                      <input type="checkbox" value="configuration"
-                        class="match-dim w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500">
-                      <span>🏠 Match Configuration (BHK)</span>
-                    </label>
-                    <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                      <input type="checkbox" value="possession"
-                        class="match-dim w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500">
-                      <span>📅 Match Possession Status</span>
-                    </label>
-                    <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                      <input type="checkbox" value="location"
-                        class="match-dim w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500">
-                      <span>📍 Match Location</span>
-                    </label>
-                    <p class="text-xs text-slate-400">If the lead hasn't answered a question yet, that rule is skipped.
-                    </p>
-                  </div>
-                </div>
-              </label>
-            </div>
-          </div>
-
-          <!-- Property Welcome Buttons -->
-          <div id="box-property_welcome" class="hidden space-y-3">
-            <label class="block text-sm font-semibold text-slate-700 mb-1">
-              Action Buttons <span class="text-slate-400 font-normal text-xs">(one per line)</span>
-            </label>
-            <textarea id="step-buttons" rows="2"
-              placeholder="📅 Book Site Visit&#10;📄 Get Brochure&#10;📞 Request Callback"
-              class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm font-mono transition resize-y"></textarea>
-          </div>
-
-          <!-- Document URL -->
-          <div id="box-brochure" class="hidden">
-            <label class="block text-sm font-semibold text-slate-700 mb-1">PDF URL</label>
-            <input type="url" id="step-doc" placeholder="https://cdn.example.com/brochure.pdf"
-              class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm transition">
-          </div>
-
-          <!-- Submit -->
-          <div class="pt-4 border-t border-slate-200">
-            <button onclick="submitStep()"
-              class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-lg text-sm font-medium shadow-sm w-full sm:w-auto transition">
-              Save Step
-            </button>
-          </div>
-        </div>
-
-        <!-- Hidden form -->
-        <form id="modal-form" action="/admin/flows/steps?key=<%= req.query.key || '' %>&clientId=<%= clientId %>"
-          method="POST" class="hidden">
-          <input type="hidden" name="key" value="<%= req.query.key || '' %>">
-          <input type="hidden" name="clientId" value="<%= clientId %>">
-          <input type="hidden" name="step_type" id="form-step-type">
-          <input type="hidden" name="step_name" id="form-step-name">
-          <input type="hidden" name="save_field" id="form-save-field">
-          <textarea name="message_text" id="form-message"></textarea>
-          <textarea name="options" id="form-options"></textarea>
-        </form>
-
       </div>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
-    <script>
-<% if (activeFlow) { %>
-const sortable = Sortable.create(document.getElementById('sortable-steps'), {
-  handle: '.handle',
-  animation: 150,
-  ghostClass: 'sortable-ghost',
-  dragClass: 'sortable-drag',
-  onEnd: async function (evt) {
-    const nodeIds = Array.from(document.querySelectorAll('.step-card')).map(el => el.dataset.nodeId);
-    try {
-      await fetch('/admin/flows/reorder?key=<%= req.query.key || '' %>&clientId=<%= clientId %>', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ flowId: <%= activeFlow.flow_id %>, nodeIds })
+
+    <!-- Step list -->
+    <% if (activeFlow) { %>
+      <div id="sortable-steps" class="space-y-3">
+        <% steps.forEach((step, idx) => {
+          const meta = typeMeta[step.node_type] || typeMeta.send_message;
+          const config = step.config || {};
+        %>
+          <div class="step-row" data-node-id="<%= step.node_id %>" data-step-type="<%= step.node_type %>">
+            <!-- Main row (unchanged) -->
+            <div class="flex items-center gap-3 p-4">
+              <div class="handle cursor-grab text-slate-400 hover:text-slate-600">⠿</div>
+              <div class="w-8 h-8 rounded-lg bg-<%= meta.color %>-100 text-<%= meta.color %>-600 flex items-center justify-center text-lg flex-shrink-0 border border-<%= meta.color %>-200"><%= meta.icon %></div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="text-sm font-semibold text-slate-800"><%= step.node_name || 'Untitled' %></span>
+                  <span class="text-[10px] font-bold uppercase text-<%= meta.color %>-700 bg-<%= meta.color %>-50 px-1.5 py-0.5 rounded border"><%= meta.label %></span>
+                </div>
+                <% if (config.text) { %><p class="text-sm text-slate-500 truncate"><%= config.text %></p><% } %>
+              </div>
+              <div class="flex items-center gap-2 flex-shrink-0">
+                <span class="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full">🔗 <%= (step.connections||[]).length %></span>
+                <button onclick="toggleEdit(<%= step.node_id %>)" class="text-xs px-3 py-1.5 bg-white border border-slate-300 rounded hover:border-purple-400 hover:text-purple-700">Edit</button>
+                <form action="/admin/flows/steps/<%= step.node_id %>/delete?clientId=<%= clientId %>" method="POST" onsubmit="return confirm('Delete this step?')">
+                  <button type="submit" class="text-xs px-3 py-1.5 bg-white border border-slate-300 rounded hover:border-red-400 hover:text-red-600">Delete</button>
+                </form>
+              </div>
+            </div>
+
+            <!-- Inline editor -->
+            <div id="editor-<%= step.node_id %>" class="hidden border-t p-4 bg-slate-50 rounded-b-xl space-y-4">
+              <div class="flex items-center gap-2 text-sm">
+                <span class="font-medium text-slate-600">Type:</span>
+                <span class="text-xs font-bold uppercase px-2 py-0.5 rounded border bg-<%= meta.color %>-50 text-<%= meta.color %>-700 border-<%= meta.color %>-200"><%= meta.icon %> <%= meta.label %></span>
+              </div>
+
+              <form action="/admin/flows/steps/<%= step.node_id %>/update?clientId=<%= clientId %>" method="POST" class="space-y-4" onsubmit="return prepareStepForm(<%= step.node_id %>)">
+                <input type="hidden" name="flow_id" value="<%= activeFlow.flow_id %>">
+
+                <div>
+                  <label class="block text-sm font-medium text-slate-700 mb-1">Step Name</label>
+                  <input type="text" name="step_name" value="<%= step.node_name || '' %>" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                </div>
+
+                <% if (step.node_type !== 'end_conversation') { %>
+                  <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Bot Message</label>
+                    <textarea name="message_text" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><%= config.text || '' %></textarea>
+                  </div>
+                <% } %>
+
+                <!-- Question – simplified: only label input -->
+                <% if (step.node_type === 'collect_input') { %>
+                  <div id="options-container-<%= step.node_id %>">
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Button Options (what the user sees)</label>
+                    <div id="options-list-<%= step.node_id %>">
+                      <% if (config.options && config.options.length) {
+                        config.options.forEach(opt => { %>
+                          <div class="option-row">
+                            <input type="text" placeholder="Option text (e.g. 2 BHK)" value="<%= opt.label || opt.value || '' %>" class="opt-label px-3 py-1.5 border border-slate-300 rounded text-sm">
+                            <span class="remove-option" onclick="this.parentElement.remove()">✕</span>
+                          </div>
+                        <% });
+                      } else { %>
+                        <div class="option-row">
+                          <input type="text" placeholder="Option text" class="opt-label px-3 py-1.5 border border-slate-300 rounded text-sm">
+                          <span class="remove-option" onclick="this.parentElement.remove()">✕</span>
+                        </div>
+                      <% } %>
+                    </div>
+                    <button type="button" onclick="addSimpleOptionRow(<%= step.node_id %>)" class="add-option-btn mt-1">+ Add option</button>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Save answer as (for filtering)</label>
+                    <select name="save_field" class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                      <option value="">Don't save</option>
+                      <% ['budget','configuration','requirement_type','timeline','location','possession'].forEach(field => { %>
+                        <option value="<%= field %>" <%= (config.field===field)?'selected':'' %>><%= field %></option>
+                      <% }) %>
+                    </select>
+                  </div>
+                <% } %>
+
+                <!-- Welcome buttons – simplified (unchanged, only title input) -->
+                <% if (step.node_type === 'property_welcome') { %>
+                  <div id="options-container-<%= step.node_id %>">
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Action Buttons</label>
+                    <div id="options-list-<%= step.node_id %>">
+                      <% if (config.buttons && config.buttons.length) {
+                        config.buttons.forEach(btn => { %>
+                          <div class="option-row">
+                            <input type="text" placeholder="Button Title" value="<%= btn.title || '' %>" class="opt-label px-3 py-1.5 border border-slate-300 rounded text-sm">
+                            <span class="remove-option" onclick="this.parentElement.remove()">✕</span>
+                          </div>
+                        <% });
+                      } else { %>
+                        <div class="option-row">
+                          <input type="text" placeholder="Button Title" class="opt-label px-3 py-1.5 border border-slate-300 rounded text-sm">
+                          <span class="remove-option" onclick="this.parentElement.remove()">✕</span>
+                        </div>
+                      <% } %>
+                    </div>
+                    <button type="button" onclick="addSimpleOptionRow(<%= step.node_id %>)" class="add-option-btn mt-1">+ Add button</button>
+                  </div>
+                <% } %>
+
+                <!-- Property List filter (unchanged) -->
+                <% if (step.node_type === 'show_list') { %>
+                  <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Property Filter</label>
+                    <div class="space-y-2">
+                      <label class="flex items-center gap-2 text-sm">
+                        <input type="radio" name="list-mode" value="all" <%= (config.filter_mode!=='filtered')?'checked':'' %> class="w-4 h-4 text-green-600"> Show all
+                      </label>
+                      <label class="flex items-center gap-2 text-sm">
+                        <input type="radio" name="list-mode" value="filtered" <%= (config.filter_mode==='filtered')?'checked':'' %> class="w-4 h-4 text-purple-600" onchange="toggleMatchBox(<%= step.node_id %>)"> Smart Match
+                      </label>
+                      <div id="match-dimensions-<%= step.node_id %>" class="ml-6 space-y-2 <%= (config.filter_mode!=='filtered')?'hidden':'' %>">
+                        <% ['budget_range','configuration','possession','location'].forEach(dim => { %>
+                          <label class="flex items-center gap-2 text-sm">
+                            <input type="checkbox" name="match_dimensions[]" value="<%= dim %>" <%= (config.match_dimensions&&config.match_dimensions.includes(dim))?'checked':'' %> class="w-4 h-4 text-purple-600"> Match <%= dim.replace('_',' ') %>
+                          </label>
+                        <% }) %>
+                      </div>
+                    </div>
+                  </div>
+                <% } %>
+
+                <!-- Media / Brochure (unchanged) -->
+                <% if (step.node_type === 'send_document') { %>
+                  <div id="media-container-<%= step.node_id %>">
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Media Items</label>
+                    <div id="media-list-<%= step.node_id %>">
+                      <% 
+                        const rawMedia = config.media_items;
+                        let mediaItems = [];
+                        if (Array.isArray(rawMedia) && rawMedia.length > 0) {
+                          mediaItems = rawMedia;
+                        } else if (config.document_url_field) {
+                          mediaItems = [{
+                            type: 'document',
+                            url: config.document_url_field,
+                            caption: config.caption || config.text || '',
+                            filename: config.filename || 'document.pdf'
+                          }];
+                        }
+                      %>
+                      <% if (mediaItems.length) {
+                        mediaItems.forEach((item, i) => { %>
+                          <div class="media-row">
+                            <select class="media-type px-2 py-1.5 border border-slate-300 rounded text-sm">
+                              <option value="image" <%= item.type==='image'?'selected':'' %>>Image</option>
+                              <option value="video" <%= item.type==='video'?'selected':'' %>>Video</option>
+                              <option value="document" <%= item.type==='document'?'selected':'' %>>Document</option>
+                            </select>
+                            <input type="url" placeholder="URL" value="<%= item.url || '' %>" class="media-url px-3 py-1.5 border border-slate-300 rounded text-sm">
+                            <input type="text" placeholder="Caption" value="<%= item.caption || '' %>" class="media-caption px-3 py-1.5 border border-slate-300 rounded text-sm">
+                            <input type="text" placeholder="Filename (doc only)" value="<%= item.filename || '' %>" class="media-filename px-3 py-1.5 border border-slate-300 rounded text-sm">
+                            <span class="remove-option" onclick="this.parentElement.remove()">✕</span>
+                          </div>
+                        <% });
+                      } else { %>
+                        <div class="media-row">
+                          <select class="media-type px-2 py-1.5 border border-slate-300 rounded text-sm">
+                            <option value="image">Image</option>
+                            <option value="video">Video</option>
+                            <option value="document">Document</option>
+                          </select>
+                          <input type="url" placeholder="URL" class="media-url px-3 py-1.5 border border-slate-300 rounded text-sm">
+                          <input type="text" placeholder="Caption" class="media-caption px-3 py-1.5 border border-slate-300 rounded text-sm">
+                          <input type="text" placeholder="Filename (doc only)" class="media-filename px-3 py-1.5 border border-slate-300 rounded text-sm">
+                          <span class="remove-option" onclick="this.parentElement.remove()">✕</span>
+                        </div>
+                      <% } %>
+                    </div>
+                    <button type="button" onclick="addMediaRow(<%= step.node_id %>)" class="add-option-btn mt-1">+ Add media</button>
+                  </div>
+                <% } %>
+
+                <!-- Book Visit – simplified slots (only label) -->
+                <% if (step.node_type === 'book_appointment') { %>
+                  <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Visit Slots Source</label>
+                    <div class="flex gap-4">
+                      <label class="flex items-center gap-2 text-sm">
+                        <input type="radio" name="slot_source_<%= step.node_id %>" value="predefined"
+                               <%= (config.options && config.options.length) ? 'checked' : '' %>
+                               onchange="toggleSlotSource('<%= step.node_id %>')" class="w-4 h-4 text-purple-600">
+                        Use predefined slots
+                      </label>
+                      <label class="flex items-center gap-2 text-sm">
+                        <input type="radio" name="slot_source_<%= step.node_id %>" value="property"
+                               <%= (!config.options || !config.options.length) ? 'checked' : '' %>
+                               onchange="toggleSlotSource('<%= step.node_id %>')" class="w-4 h-4 text-purple-600">
+                        Use property's own slots
+                      </label>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-1">"Property's own slots" are managed on the property detail page.</p>
+                  </div>
+
+                  <div id="predefined-slots-<%= step.node_id %>" class="<%= (config.options && config.options.length) ? '' : 'hidden' %>">
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Predefined Slots</label>
+                    <div id="options-list-<%= step.node_id %>">
+                      <% if (config.options && config.options.length) {
+                        config.options.forEach(opt => { %>
+                          <div class="option-row">
+                            <input type="text" placeholder="Slot name (e.g. Saturday 10 AM)" value="<%= opt.label || opt.value || '' %>" class="opt-label px-3 py-1.5 border border-slate-300 rounded text-sm">
+                            <span class="remove-option" onclick="this.parentElement.remove()">✕</span>
+                          </div>
+                        <% });
+                      } else { %>
+                        <div class="option-row">
+                          <input type="text" placeholder="Slot name" class="opt-label px-3 py-1.5 border border-slate-300 rounded text-sm">
+                          <span class="remove-option" onclick="this.parentElement.remove()">✕</span>
+                        </div>
+                      <% } %>
+                    </div>
+                    <button type="button" onclick="addSimpleOptionRow(<%= step.node_id %>)" class="add-option-btn mt-1">+ Add slot</button>
+                  </div>
+                <% } %>
+
+                <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm">Save Changes</button>
+              </form>
+
+              <!-- Connections section (unchanged) -->
+              <div class="border-t pt-4">
+                <h4 class="text-sm font-semibold text-slate-700 mb-2">Connections</h4>
+                <% if (step.connections && step.connections.length) { %>
+                  <div class="flex flex-wrap gap-2 mb-3">
+                    <% step.connections.forEach(conn => {
+                      const action = conn.conditionLogic || {};
+                      const actionLabel = action.action==='save_answer'?`💾 Save ${action.field}`:action.action==='score_lead'?`⭐ Score ${action.score}`:'';
+                    %>
+                      <div class="conn-tag" title="<%= actionLabel %>">
+                        <% if (conn.userInput) { %><span class="font-medium">"<%= conn.userInput %>"</span> → <% } %>
+                        <span class="font-medium text-purple-700"><%= conn.toNodeName || 'Step #'+conn.toNodeId %></span>
+                        <% if (actionLabel) { %><span class="text-[10px] bg-purple-100 text-purple-700 px-1 rounded ml-1"><%= actionLabel %></span><% } %>
+                        <a href="/admin/flows/connections/<%= conn.edgeId %>/delete?clientId=<%= clientId %>" class="text-slate-400 hover:text-red-500 ml-1">✕</a>
+                      </div>
+                    <% }) %>
+                  </div>
+                <% } else { %>
+                  <p class="text-sm text-slate-400 mb-3">No connections yet.</p>
+                <% } %>
+                <details class="text-sm">
+                  <summary class="text-purple-600 cursor-pointer hover:underline font-medium">+ Add Connection</summary>
+                  <form action="/admin/flows/connections?clientId=<%= clientId %>" method="POST" class="mt-2 space-y-2">
+                    <input type="hidden" name="from_step" value="<%= step.node_id %>">
+                    <div class="flex gap-2">
+                      <select name="to_step" required class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                        <option value="">Select target step…</option>
+                        <% steps.forEach(t => { if (t.node_id !== step.node_id) { %>
+                          <option value="<%= t.node_id %>"><%= t.node_name || 'Step #'+t.node_id %> (<%= typeMeta[t.node_type]?.label %>)</option>
+                        <% } }) %>
+                      </select>
+                      <input type="text" name="user_choice" placeholder="Condition (e.g. Yes)" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                    </div>
+                    <div class="flex gap-2 items-center">
+                      <select name="action_type" onchange="toggleConnectionAction(this, '<%= step.node_id %>')" class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                        <option value="">No action</option>
+                        <option value="save_answer">Save Answer</option>
+                        <option value="score_lead">Score Lead</option>
+                      </select>
+                      <div id="conn-action-box-<%= step.node_id %>" class="hidden flex-1 flex gap-2">
+                        <select id="conn-action-select-<%= step.node_id %>" onchange="onConnFieldSelectChange(this, '<%= step.node_id %>')" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                          <option value="">Select field…</option>
+                          <option value="budget">budget</option>
+                          <option value="configuration">configuration</option>
+                          <option value="requirement_type">requirement_type</option>
+                          <option value="timeline">timeline</option>
+                          <option value="location">location</option>
+                          <option value="possession">possession</option>
+                          <option value="__custom__">Custom…</option>
+                        </select>
+                        <input type="text" id="conn-action-field-<%= step.node_id %>" name="action_field" class="hidden flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="Field name">
+                      </div>
+                    </div>
+                    <button type="submit" class="bg-purple-600 text-white px-3 py-1.5 rounded text-xs">Save Connection</button>
+                  </form>
+                </details>
+              </div>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+
+      <!-- Add step bar -->
+      <div class="mt-4">
+        <form action="/admin/flows/steps?clientId=<%= clientId %>" method="POST" class="flex items-center gap-2 bg-white border border-dashed border-slate-300 rounded-xl p-4">
+          <input type="hidden" name="clientId" value="<%= clientId %>">
+          <input type="hidden" name="flow_id" value="<%= activeFlow.flow_id %>">
+          <select name="step_type" class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+            <option value="message">📝 Message</option>
+            <option value="question">❓ Question</option>
+            <option value="property_list">🏠 Property List</option>
+            <option value="property_welcome">🏢 Welcome</option>
+            <option value="brochure">📄 Media / Brochure</option>
+            <option value="book_visit">📅 Book Visit</option>
+            <option value="callback">📞 Callback</option>
+            <option value="end_conversation">🛑 End</option>
+          </select>
+          <input type="text" name="step_name" placeholder="Step name" class="px-3 py-2 border border-slate-300 rounded-lg text-sm flex-1">
+          <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium">+ Add Step</button>
+        </form>
+      </div>
+    <% } else { %>
+      <div class="text-center py-20 bg-white rounded-xl border border-slate-200">
+        <div class="text-4xl mb-3">🏗️</div>
+        <h3 class="text-lg font-semibold text-slate-700 mb-1">No flow selected</h3>
+        <p class="text-sm text-slate-500">Select or create a flow to start building.</p>
+      </div>
+    <% } %>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script>
+  function toggleNewFlow() { document.getElementById('new-flow-form').classList.toggle('hidden'); }
+  function toggleEdit(nodeId) { const editor = document.getElementById('editor-'+nodeId); if (editor) editor.classList.toggle('hidden'); }
+
+  // Simplified add row – only one input
+  function addSimpleOptionRow(nodeId) {
+    const list = document.getElementById('options-list-'+nodeId);
+    if (!list) return;
+    const row = document.createElement('div');
+    row.className = 'option-row';
+    const stepRow = document.querySelector(`.step-row[data-node-id="${nodeId}"]`);
+    const stepType = stepRow ? stepRow.dataset.stepType : '';
+    if (stepType === 'property_welcome') {
+      row.innerHTML = `<input type="text" placeholder="Button Title" class="opt-label px-3 py-1.5 border border-slate-300 rounded text-sm"><span class="remove-option" onclick="this.parentElement.remove()">✕</span>`;
+    } else {
+      row.innerHTML = `<input type="text" placeholder="Option text" class="opt-label px-3 py-1.5 border border-slate-300 rounded text-sm"><span class="remove-option" onclick="this.parentElement.remove()">✕</span>`;
+    }
+    list.appendChild(row);
+  }
+
+  function addMediaRow(nodeId) {
+    const list = document.getElementById('media-list-'+nodeId);
+    const row = document.createElement('div');
+    row.className = 'media-row';
+    row.innerHTML = `<select class="media-type px-2 py-1.5 border border-slate-300 rounded text-sm"><option value="image">Image</option><option value="video">Video</option><option value="document">Document</option></select>
+    <input type="url" placeholder="URL" class="media-url px-3 py-1.5 border border-slate-300 rounded text-sm">
+    <input type="text" placeholder="Caption" class="media-caption px-3 py-1.5 border border-slate-300 rounded text-sm">
+    <input type="text" placeholder="Filename (doc only)" class="media-filename px-3 py-1.5 border border-slate-300 rounded text-sm">
+    <span class="remove-option" onclick="this.parentElement.remove()">✕</span>`;
+    list.appendChild(row);
+  }
+
+  function prepareStepForm(nodeId) {
+    const form = document.querySelector(`#editor-${nodeId} form`);
+    if (!form) return true;
+
+    const optionsList = document.getElementById('options-list-'+nodeId);
+    if (optionsList) {
+      const rows = optionsList.querySelectorAll('.option-row');
+      let lines = [];
+      rows.forEach(row => {
+        const labelInput = row.querySelector('.opt-label');
+        if (labelInput && labelInput.value.trim()) {
+          lines.push(labelInput.value.trim());
+        }
+      });
+      let hiddenOpt = form.querySelector('input[name="options"]');
+      if (!hiddenOpt) {
+        hiddenOpt = document.createElement('input');
+        hiddenOpt.type = 'hidden';
+        hiddenOpt.name = 'options';
+        form.appendChild(hiddenOpt);
+      }
+      hiddenOpt.value = lines.join('\n');
+    }
+
+    const mediaList = document.getElementById('media-list-'+nodeId);
+    if (mediaList) {
+      const rows = mediaList.querySelectorAll('.media-row');
+      const items = [];
+      rows.forEach(row => {
+        const type = row.querySelector('.media-type').value;
+        const url = row.querySelector('.media-url').value.trim();
+        if (!url) return;
+        const caption = row.querySelector('.media-caption').value.trim();
+        const filename = row.querySelector('.media-filename').value.trim();
+        items.push({ type, url, caption, filename: filename || 'document' });
+      });
+      let hiddenMedia = form.querySelector('input[name="media_items_json"]');
+      if (!hiddenMedia) {
+        hiddenMedia = document.createElement('input');
+        hiddenMedia.type = 'hidden';
+        hiddenMedia.name = 'media_items_json';
+        form.appendChild(hiddenMedia);
+      }
+      hiddenMedia.value = JSON.stringify(items);
+    }
+    return true;
+  }
+
+  function toggleMatchBox(nodeId) {
+    const box = document.getElementById('match-dimensions-'+nodeId);
+    const radio = document.querySelector(`#editor-${nodeId} input[name="list-mode"][value="filtered"]`);
+    box.classList.toggle('hidden', !radio || !radio.checked);
+  }
+
+  function toggleSlotSource(nodeId) {
+    const radio = document.querySelector(`input[name="slot_source_${nodeId}"]:checked`);
+    const predefinedDiv = document.getElementById('predefined-slots-' + nodeId);
+    if (!radio || !predefinedDiv) return;
+
+    if (radio.value === 'predefined') {
+      predefinedDiv.classList.remove('hidden');
+    } else {
+      predefinedDiv.classList.add('hidden');
+      const form = document.querySelector(`#editor-${nodeId} form`);
+      if (form) {
+        let hiddenOpt = form.querySelector('input[name="options"]');
+        if (!hiddenOpt) {
+          hiddenOpt = document.createElement('input');
+          hiddenOpt.type = 'hidden';
+          hiddenOpt.name = 'options';
+          form.appendChild(hiddenOpt);
+        }
+        hiddenOpt.value = '';
+      }
+    }
+  }
+
+  function toggleConnectionAction(select, nodeId) {
+    const box = document.getElementById('conn-action-box-'+nodeId);
+    const field = document.getElementById('conn-action-field-'+nodeId);
+    const selectEl = document.getElementById('conn-action-select-'+nodeId);
+    if (select.value === 'save_answer' || select.value === 'score_lead') {
+      box.classList.remove('hidden');
+      if (select.value === 'save_answer') {
+        selectEl.classList.remove('hidden');
+        field.classList.add('hidden');
+        field.value = '';
+      } else {
+        selectEl.classList.add('hidden');
+        field.classList.remove('hidden');
+        field.placeholder = 'Score number (e.g. 10)';
+        field.name = 'action_field';
+      }
+    } else {
+      box.classList.add('hidden');
+      field.value = '';
+    }
+  }
+
+  function onConnFieldSelectChange(select, nodeId) {
+    const customInput = document.getElementById('conn-action-field-'+nodeId);
+    if (select.value === '__custom__') {
+      customInput.classList.remove('hidden');
+      customInput.placeholder = 'Enter custom field name';
+      customInput.focus();
+    } else if (select.value) {
+      customInput.classList.add('hidden');
+      customInput.value = select.value;
+    } else {
+      customInput.classList.add('hidden');
+      customInput.value = '';
+    }
+  }
+
+  <% if (activeFlow) { %>
+  new Sortable(document.getElementById('sortable-steps'), {
+    handle: '.handle',
+    animation: 150,
+    ghostClass: 'sortable-ghost',
+    dragClass: 'sortable-drag',
+    onEnd: async function (evt) {
+      const nodeIds = Array.from(document.querySelectorAll('.step-row')).map(el => el.dataset.nodeId);
+      await fetch('/admin/flows/reorder?clientId=<%= clientId %>', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ flowId:<%= activeFlow.flow_id %>, nodeIds })
       });
       window.location.reload();
-    } catch (e) { alert('Failed to save order'); }
-  }
-});
-<% } %>
-
-        /* ── Quick Connect ── */
-        function toggleQuickConnect(nodeId) {
-          const el = document.getElementById('qc-' + nodeId);
-          el.classList.toggle('hidden');
-          if (!el.classList.contains('hidden')) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-
-      function toggleActionField(select, nodeId) {
-        const box = document.getElementById('af-box-' + nodeId);
-        const field = document.getElementById('af-' + nodeId);
-        const selectEl = document.getElementById('af-select-' + nodeId);
-        if (select.value === 'save_answer' || select.value === 'score_lead') {
-          box.classList.remove('hidden');
-          if (select.value === 'save_answer') {
-            selectEl.classList.remove('hidden');
-            field.classList.add('hidden');
-            field.value = '';
-          } else {
-            selectEl.classList.add('hidden');
-            field.classList.remove('hidden');
-            field.placeholder = 'Score number (e.g. 10)';
-            field.name = 'action_field';
-          }
-        } else {
-          box.classList.add('hidden');
-          field.value = '';
-        }
-      }
-
-      function onFieldSelectChange(select, nodeId) {
-        const customInput = document.getElementById('af-' + nodeId);
-        if (select.value === '__custom__') {
-          customInput.classList.remove('hidden');
-          customInput.placeholder = 'Enter custom field name (no spaces)';
-          customInput.focus();
-        } else if (select.value) {
-          customInput.classList.add('hidden');
-          customInput.value = select.value;
-        } else {
-          customInput.classList.add('hidden');
-          customInput.value = '';
-        }
-      }
-
-      /* ── Modal State ── */
-      let editingNodeId = null;
-      let currentType = 'question';
-
-      function openAddWizard() {
-        editingNodeId = null;
-        resetModal();
-        document.getElementById('modal-title').textContent = 'Add Step';
-        document.getElementById('step-modal').classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
-        setStepType('question');
-      }
-
-      function openEditWizard(nodeId) {
-        editingNodeId = nodeId;
-        const card = document.querySelector(`.step-card[data-node-id="${nodeId}"]`);
-        if (!card) return;
-        const name = card.querySelector('.font-semibold.text-slate-800')?.textContent?.trim() || '';
-        const msg = card.querySelector('.whitespace-pre-wrap')?.textContent?.trim() || '';
-        const optEls = card.querySelectorAll('.rounded-md.text-xs.text-slate-700.shadow-sm');
-        const opts = Array.from(optEls).map(el => el.textContent.trim()).join('\n');
-        const label = card.querySelector('.uppercase')?.textContent?.trim();
-        const reverseMap = { 'Question': 'question', 'Message': 'message', 'Property List': 'property_list', 'Welcome': 'property_welcome', 'Brochure': 'brochure', 'Book Visit': 'book_visit', 'Callback': 'callback' };
-        const code = reverseMap[label] || 'question';
-        const savedFilterMode = card.dataset.filterMode || '';
-        const savedMatchDims = JSON.parse(decodeURIComponent(card.dataset.matchDimensions || '[]'));
-        const savedSaveField = card.dataset.saveField || '';
-
-        resetModal();
-        document.getElementById('modal-title').textContent = 'Edit Step';
-        document.getElementById('step-name').value = name;
-        document.getElementById('step-message').value = msg;
-        setStepType(code);
-
-        if (code === 'question') {
-          document.getElementById('step-options').value = opts;
-          document.getElementById('save-field').value = savedSaveField;
-        }
-        if (code === 'property_list') {
-          if (savedFilterMode === 'filtered') {
-            document.querySelector('input[name="list-mode"][value="filtered"]').checked = true;
-          } else {
-            document.querySelector('input[name="list-mode"][value="all"]').checked = true;
-          }
-          toggleMatchBox();
-          restoreMatchDimensions(savedMatchDims);
-        }
-        if (code === 'property_welcome') {
-          document.getElementById('step-buttons').value = opts;
-        }
-        updatePreview();
-        document.getElementById('step-modal').classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
-      }
-
-      function closeModal() {
-        document.getElementById('step-modal').classList.add('hidden');
-        document.body.style.overflow = '';
-      }
-
-      function resetModal() {
-        document.getElementById('step-name').value = '';
-        document.getElementById('step-message').value = '';
-        document.getElementById('step-options').value = '';
-        document.getElementById('step-buttons').value = '';
-        document.getElementById('step-doc').value = '';
-        document.getElementById('save-field').value = '';
-        document.querySelector('input[name="list-mode"][value="all"]').checked = true;
-        document.querySelectorAll('.match-dim').forEach(cb => cb.checked = false);
-        toggleMatchBox();
-      }
-
-      function setStepType(code) {
-        currentType = code;
-        document.querySelectorAll('.type-btn').forEach(btn => {
-          if (btn.dataset.type === code) {
-            btn.classList.add('border-purple-500', 'bg-purple-50', 'ring-2', 'ring-purple-200');
-            btn.classList.remove('border-slate-200');
-          } else {
-            btn.classList.remove('border-purple-500', 'bg-purple-50', 'ring-2', 'ring-purple-200');
-            btn.classList.add('border-slate-200');
-          }
-        });
-        document.getElementById('box-question').classList.toggle('hidden', code !== 'question');
-        document.getElementById('box-property_list').classList.toggle('hidden', code !== 'property_list');
-        document.getElementById('box-property_welcome').classList.toggle('hidden', code !== 'property_welcome');
-        document.getElementById('box-brochure').classList.toggle('hidden', code !== 'brochure');
-
-        const examples = {
-          'question': 'What is your budget range?',
-          'message': 'Thanks for your interest! Here is what we offer.',
-          'property_list': 'Here are projects matching your requirements:',
-          'property_welcome': 'Welcome to our project! What would you like to do?',
-          'brochure': 'Here is the project brochure for your reference.',
-          'book_visit': 'Would you like to book a site visit?',
-          'callback': 'Our agent will call you back shortly.'
-        };
-        const msgInput = document.getElementById('step-message');
-        if (!msgInput.value && examples[code]) {
-          msgInput.value = examples[code];
-          updatePreview();
-        }
-        autoFillName();
-      }
-
-      function toggleMatchBox() {
-        const isFiltered = document.querySelector('input[name="list-mode"]:checked')?.value === 'filtered';
-        document.getElementById('match-dimensions').classList.toggle('hidden', !isFiltered);
-      }
-
-      function updatePreview() {
-        const msg = document.getElementById('step-message').value;
-        document.getElementById('preview-msg').textContent = msg || 'Type above to see preview…';
-        const container = document.getElementById('preview-opts');
-        container.innerHTML = '';
-        if (currentType === 'question') {
-          const opts = (document.getElementById('step-options').value || '').split('\n').map(l => l.trim()).filter(l => l);
-          opts.forEach(opt => {
-            const btn = document.createElement('span');
-            btn.className = 'px-3 py-1 bg-white border border-slate-200 rounded text-xs text-slate-700 shadow-sm';
-            btn.textContent = opt;
-            container.appendChild(btn);
-          });
-        } else if (currentType === 'property_welcome') {
-          const btns = (document.getElementById('step-buttons').value || '').split('\n').map(l => l.trim()).filter(l => l);
-          btns.forEach(txt => {
-            const btn = document.createElement('span');
-            btn.className = 'px-3 py-1 bg-white border border-slate-200 rounded text-xs text-slate-700 shadow-sm';
-            btn.textContent = txt;
-            container.appendChild(btn);
-          });
-        }
-      }
-
-      function autoFillName() {
-        const msg = document.getElementById('step-message').value;
-        const nameInput = document.getElementById('step-name');
-        if (!nameInput.value && msg) {
-          nameInput.value = msg.split(' ').slice(0, 3).join(' ');
-        }
-      }
-
-      /* ── Event listeners ── */
-      document.getElementById('step-message').addEventListener('input', function () { updatePreview(); autoFillName(); });
-      document.getElementById('step-options').addEventListener('input', updatePreview);
-      document.getElementById('step-buttons').addEventListener('input', updatePreview);
-
-      function collectMatchDimensions() {
-        return Array.from(document.querySelectorAll('.match-dim:checked')).map(cb => cb.value);
-      }
-
-      function restoreMatchDimensions(dims) {
-        document.querySelectorAll('.match-dim').forEach(cb => cb.checked = false);
-        if (!Array.isArray(dims)) return;
-        dims.forEach(d => {
-          const cb = document.querySelector(`.match-dim[value="${d}"]`);
-          if (cb) cb.checked = true;
-        });
-      }
-
-      function submitStep() {
-        const name = document.getElementById('step-name').value || 'Untitled Step';
-        const msg = document.getElementById('step-message').value;
-        document.getElementById('form-step-type').value = currentType;
-        document.getElementById('form-step-name').value = name;
-        document.getElementById('form-message').value = msg;
-        document.getElementById('form-save-field').value = document.getElementById('save-field').value;
-
-        let opts = '';
-        if (currentType === 'question') {
-          opts = document.getElementById('step-options').value;
-        } else if (currentType === 'property_list') {
-          const mode = document.querySelector('input[name="list-mode"]:checked')?.value || 'all';
-          const dims = collectMatchDimensions();
-          opts = JSON.stringify({ mode, match_dimensions: dims });
-        } else if (currentType === 'property_welcome') {
-          opts = document.getElementById('step-buttons').value;
-        }
-        document.getElementById('form-options').value = opts;
-
-        const form = document.getElementById('modal-form');
-        if (editingNodeId) {
-          form.action = '/admin/flows/steps/' + editingNodeId + '/update?key=<%= req.query.key || '' %>&clientId=<%= clientId %>';
-        } else {
-          form.action = '/admin/flows/steps?key=<%= req.query.key || '' %>&clientId=<%= clientId %>';
-        }
-        form.submit();
-      }
-
-      /* ── Keyboard shortcuts ── */
-      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
-    </script>
+    }
+  });
+  <% } %>
+</script>

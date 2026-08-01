@@ -34,3 +34,19 @@ INSERT INTO node_types (node_type_code, node_type_name, description, config_sche
   ('assign_agent', 'Assign Agent', 'Assign lead to an agent', '{}'),
   ('calculate_score', 'Calculate Score', 'Calculate lead quality score', '{}')
 ON CONFLICT (node_type_code) DO NOTHING;
+
+
+
+
+
+
+
+node scripts/seed-templates.js 1
+
+# Basic client (just name)
+node scripts/seed-client.js "Sunrise Properties"
+
+# With Meta credentials
+node scripts/seed-client.js "Sunrise Properties" "WABA123" "PN123456" "EAAx..."
+
+node scripts/seed-client.js "Sunrise Properties" "2092175135009517" "1211524668715452" "EAAWsvFBWwK4BSElgyUMLpGypAN8ZCytrZCmvJyfbuBPqQIeHxS2M7URnDCmbBsgNom9fC5cOQcjQWyKlX0kQ6GPsIZCSckgSu57Oi2ab6LzeIHl9MiAWZAdPBfmfkJn2SQSTizlyqP5hSnXz453vtMMpOFuzPxxhjdueES4H4qTK0BTUeqewAjzXZCqWHAkyuOprwB6RRnHPSZAu2o0R0h4YpfMXkEfbiqDK20"

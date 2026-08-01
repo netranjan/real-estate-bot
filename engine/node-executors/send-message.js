@@ -45,4 +45,9 @@ async function execute(lead, config) {
   return { success: true, type: 'MESSAGE_SENT' };
 }
 
-module.exports = { execute };
+module.exports = {
+  execute,
+  defaultConfig: {
+    text: 'Thank you for your interest!'
+  }
+};

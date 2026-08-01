@@ -1,0 +1,15 @@
+<!-- views/admin/partials/flow-toolbar.ejs -->
+<div class="flex items-center gap-3 mb-6">
+  <button onclick="validateFlow()" class="text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition">
+    ✅ Validate Flow
+  </button>
+  <% if (activeFlow) { %>
+    <form action="/admin/flows/<%= activeFlow.flow_id %>/clone" method="POST" class="inline">
+      <input type="hidden" name="clientId" value="<%= clientId %>">
+      <button type="submit" class="text-xs px-3 py-1.5 bg-white border border-slate-300 rounded-lg hover:bg-purple-50 transition">
+        📋 Clone
+      </button>
+    </form>
+  <% } %>
+  <span class="text-xs text-slate-400" id="validation-result"></span>
+</div>

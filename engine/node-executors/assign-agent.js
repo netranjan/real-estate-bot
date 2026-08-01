@@ -53,4 +53,9 @@ async function execute(lead, config) {
   return { success: true, type: 'AGENT_ASSIGNED', agent_id: agentId };
 }
 
-module.exports = { execute };
+module.exports = {
+  execute,
+  defaultConfig: {
+    text: 'We are connecting you with an agent…'
+  }
+};
