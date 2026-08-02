@@ -319,10 +319,10 @@ async function getEdgeByInput(fromNodeId, userInput) {
      FROM flow_edges e
      JOIN flow_nodes tn ON e.to_node_id = tn.node_id
      WHERE e.from_node_id = $1
-       AND (e.user_input_value = $2 OR e.user_input_value IS NULL)
+       AND (LOWER(e.user_input_value) = LOWER($2) OR e.user_input_value IS NULL)
        AND e.active = TRUE
      ORDER BY
-       CASE WHEN e.user_input_value = $2 THEN 0 ELSE 1 END,
+       CASE WHEN LOWER(e.user_input_value) = LOWER($2) THEN 0 ELSE 1 END,
        e.priority DESC
      LIMIT 1`,
     [fromNodeId, userInput]
