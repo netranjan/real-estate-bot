@@ -70,6 +70,28 @@ async function handleIncomingMessage(body) {
       return;
     }
 
+    // RESET lead if it's on a different flow or invalid node
+    const needsReset = !lead.current_flow_id || lead.current_flow_id !== flow.flow_id;
+    if (!needsReset && lead.current_node_id) {
+      const nodeCheck = await db.getNodeById(lead.current_node_id);
+      if (!nodeCheck || nodeCheck.flow_id !== flow.flow_id) {
+        console.log(`🔄 Lead ${lead.lead_id} node ${lead.current_node_id} not in active flow ${flow.flow_id}, resetting`);
+        await db.updateLeadNode(lead.lead_id, flow.start_node_id);
+        lead = await db.getLeadById(lead.lead_id);
+      }
+    }
+    if (needsReset) {
+      console.log(`🔄 Lead ${lead.lead_id} flow mismatch (${lead.current_flow_id} vs ${flow.flow_id}), resetting to start`);
+      await db.updateLeadNode(lead.lead_id, flow.start_node_id);
+      await db.pool.query(
+        'UPDATE leads SET current_flow_id = $1 WHERE lead_id = $2',
+        [flow.flow_id, lead.lead_id]
+      );
+      // Clear old answers so the new flow starts fresh
+      await db.pool.query('DELETE FROM lead_answers WHERE lead_id = $1', [lead.lead_id]);
+      lead = await db.getLeadById(lead.lead_id);
+    }
+
     // Only auto‑start on the very first message (no answers yet, at start node, not already started)
     const answersCount = (await db.getLeadAnswers(lead.lead_id)).length;
     const flowStarted = lead.context_data?.flow_started;
@@ -79,7 +101,6 @@ async function handleIncomingMessage(body) {
       if (startNode) {
         console.log('🚀 First message – auto-starting flow');
         await stateMachine.executeAndChain(lead, startNode);
-        // Mark that the flow has been started
         await leadService.saveToContext(lead.lead_id, 'flow_started', true);
         return;
       }

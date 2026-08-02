@@ -651,7 +651,7 @@ async function getRecentCallbacksByClient(clientId, limit = 10) {
 
 module.exports = {
   
-   pool,  
+   pool,
   // clients
   getAllClients,
   getClientById,

@@ -66,56 +66,10 @@ async function extractAndSaveContext(lead, userInput) {
   }
 }
 
-// ─── Out‑of‑order handler (global slot‑filling) ──────────────────
-async function handleOutOfOrderInput(lead, userInput, activeFlow) {
-  if (!activeFlow) return false;
-  const nodes = await db.getFlowNodes(activeFlow.flow_id);
-  if (!nodes || nodes.length === 0) return false;
-  const input = String(userInput).trim().toLowerCase();
-  if (!input) return false;
-
-  for (const node of nodes) {
-    if (node.node_type !== 'collect_input') continue;
-    if (!node.config || !node.config.options) continue;
-
-    const options = node.config.options;
-    const matchedOption = options.find(opt => {
-      const val = String(opt.value || opt).trim().toLowerCase();
-      const label = String(opt.label || opt.value || opt).trim().toLowerCase();
-      return val === input || label === input;
-    });
-    if (!matchedOption) continue;
-
-    console.log(`🔄 Out‑of‑order: "${userInput}" matches node ${node.node_code} (${node.node_name})`);
-
-    // Save/overwrite answer for that node's field
-    if (node.config.field) {
-      const valueToSave = String(matchedOption.value || matchedOption.label || matchedOption).trim();
-      await db.saveLeadAnswer(lead.lead_id, node.config.field, valueToSave, node.node_id);
-    }
-
-    // Find edge (exact match first, then default)
-    let edge = await findMatchingEdge(node.node_id, matchedOption.value || matchedOption.label, true);
-    if (!edge) edge = await findMatchingEdge(node.node_id, null, true);
-    if (!edge) {
-      console.log('⚠️ No edge found for out‑of‑order node');
-      return true;
-    }
-
-    // Move lead and execute next node
-    await db.updateLeadNode(lead.lead_id, edge.to_node_id);
-    const updatedLead = await db.getLeadById(lead.lead_id);
-    const nextNode = await db.getNodeById(edge.to_node_id);
-    await executeAndChain(updatedLead, nextNode);
-    return true;
-  }
-  return false;
-}
-
 // ─── Case‑insensitive edge finder ──────────────────────────────
 async function findMatchingEdge(nodeId, userInput, includeDefault = false) {
   const allEdges = await db.getEdgesFromNode(nodeId);
-  if (!allEdges) return null;
+  if (!allEdges || allEdges.length === 0) return null;
 
   const normalizedInput = userInput ? String(userInput).trim().toLowerCase() : null;
 
@@ -126,7 +80,7 @@ async function findMatchingEdge(nodeId, userInput, includeDefault = false) {
   }
 
   // If includeDefault and we haven't matched, return the default (null) edge
-  if (includeDefault && userInput !== null) {
+  if (includeDefault && normalizedInput !== null) {
     for (const edge of allEdges) {
       if (edge.user_input_value === null) return edge;
     }
@@ -185,7 +139,7 @@ async function processMessage(lead, userInput) {
     return;
   }
 
-  console.log(`📩 Input "${userInput}" at node ${currentNode.node_code}`);
+  console.log(`📩 Input "${userInput}" at node ${currentNode.node_code} (type: ${currentNode.node_type})`);
 
   const executor = getExecutor(currentNode.node_type);
   const resolvedConfig = await contextResolver.resolveConfig(currentNode.config, lead.lead_id);
@@ -200,13 +154,26 @@ async function processMessage(lead, userInput) {
     const saveResult = await executor.saveReply(lead, resolvedConfig, userInput);
 
     if (saveResult.valid) {
-      // Valid reply – find the matching edge (case‑insensitive)
-      edge = await findMatchingEdge(currentNode.node_id, userInput);
+      // Use canonical value first, then raw input
+      const canonicalValue = saveResult.value || userInput;
+      console.log(`✅ Valid reply. Canonical value: "${canonicalValue}", raw: "${userInput}"`);
+
+      edge = await findMatchingEdge(currentNode.node_id, canonicalValue);
+      if (!edge) {
+        console.log(`⚠️ No edge for canonical "${canonicalValue}", trying raw "${userInput}"`);
+        edge = await findMatchingEdge(currentNode.node_id, userInput);
+      }
       if (!edge && (userInput.startsWith('PROPERTY_') || userInput.startsWith('VISIT_'))) {
         edge = await findMatchingEdge(currentNode.node_id, null, true);
       }
+      // CRITICAL FIX: fallback to default edge so valid replies never get stuck
       if (!edge) {
-        console.log('❌ No edge after valid reply');
+        console.log(`⚠️ No conditional edge matched, trying default edge`);
+        edge = await findMatchingEdge(currentNode.node_id, null, true);
+      }
+      if (!edge) {
+        const edges = await db.getEdgesFromNode(currentNode.node_id);
+        console.log('❌ No edge after valid reply. Available edges:', edges.map(e => ({ to: e.to_code, input: e.user_input_value })));
         return;
       }
 
@@ -216,7 +183,7 @@ async function processMessage(lead, userInput) {
       await executeAndChain(updatedLead, nextNode);
       return;
     } else {
-      // Invalid reply for current node – fall through to out‑of‑order
+      // Invalid reply for current node
       console.log('❌ Current node rejected:', saveResult.error);
     }
   }
@@ -235,12 +202,7 @@ async function processMessage(lead, userInput) {
     return;
   }
 
-  // 3. Fallback to out‑of‑order (global slot‑filling)
-  const activeFlow = await db.getActiveFlowForClient(lead.client_id);
-  const handled = await handleOutOfOrderInput(lead, userInput, activeFlow);
-  if (!handled) {
-    console.log('❌ No matching edge or out‑of‑order for:', userInput);
-  }
+  console.log('❌ No matching edge for:', userInput);
 }
 
 module.exports = {
