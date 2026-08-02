@@ -64,8 +64,14 @@ async function execute(lead, config) {
     }));
   }
 
+  // ═════════════════ FIXED: No-match fallback routing ═════════════════
   if (items.length === 0) {
-    // Send a button to allow the user to request a callback directly
+    // If flow builder set a "If No Properties Match" target, signal state machine to route there
+    if (config.fallback_node_id) {
+      return { success: true, type: 'LIST_EMPTY', use_fallback: true };
+    }
+
+    // Otherwise, send the default sorry message with callback option
     const payload = buttonMessage(
       to,
       'Sorry, no properties match your criteria right now.',

@@ -3,16 +3,16 @@ const contextResolver = require('./context-resolver');
 
 // Executor registry — maps node_type_code → executor module
 const EXECUTORS = {
-  send_message: require('./node-executors/send-message'),
-  collect_input: require('./node-executors/collect-input'),
-  show_list: require('./node-executors/show-list'),
-  send_document: require('./node-executors/send-document'),
-  book_appointment: require('./node-executors/book-appointment'),
-  request_callback: require('./node-executors/request-callback'),
-  assign_agent: require('./node-executors/assign-agent'),
-  calculate_score: require('./node-executors/calculate-score'),
-  property_welcome: require('./node-executors/property-welcome'),
-  end_conversation: require('./node-executors/end-conversation'),
+  send_message:      require('./node-executors/send-message'),
+  collect_input:     require('./node-executors/collect-input'),
+  show_list:         require('./node-executors/show-list'),
+  send_document:     require('./node-executors/send-document'),
+  book_appointment:  require('./node-executors/book-appointment'),
+  request_callback:  require('./node-executors/request-callback'),
+  assign_agent:      require('./node-executors/assign-agent'),
+  calculate_score:   require('./node-executors/calculate-score'),
+  property_welcome:  require('./node-executors/property-welcome'),
+  end_conversation:  require('./node-executors/end-conversation'),
 };
 
 function getExecutor(nodeType) {
@@ -44,6 +44,8 @@ function nodeWaitsForInput(nodeType, config, result) {
 
 // Extract and save special ID patterns (PROPERTY_123, VISIT_1) to context
 async function extractAndSaveContext(lead, userInput) {
+  if (!userInput || typeof userInput !== 'string') return;
+  
   if (userInput.startsWith('PROPERTY_')) {
     const propertyId = parseInt(userInput.replace('PROPERTY_', ''), 10);
     if (!isNaN(propertyId)) {
@@ -80,7 +82,7 @@ async function findMatchingEdge(nodeId, userInput, includeDefault = false) {
   }
 
   // If includeDefault and we haven't matched, return the default (null) edge
-  if (includeDefault && normalizedInput !== null) {
+  if (includeDefault) {
     for (const edge of allEdges) {
       if (edge.user_input_value === null) return edge;
     }
@@ -106,6 +108,16 @@ async function executeAndChain(lead, node, depth = 0) {
   console.log(`▶️ Executing node: ${node.node_code} (${node.node_type})`);
 
   const result = await executor.execute(lead, resolvedConfig);
+
+  // Fallback routing for empty lists (no matching properties)
+  if (result && result.use_fallback && resolvedConfig.fallback_node_id) {
+    console.log(`⏭️ Fallback: ${node.node_code} → fallback node ${resolvedConfig.fallback_node_id}`);
+    await db.updateLeadNode(lead.lead_id, resolvedConfig.fallback_node_id);
+    const updatedLead = await db.getLeadById(lead.lead_id);
+    const fallbackNode = await db.getNodeById(resolvedConfig.fallback_node_id);
+    await executeAndChain(updatedLead, fallbackNode, depth + 1);
+    return;
+  }
 
   const waits = nodeWaitsForInput(node.node_type, resolvedConfig, result);
 
@@ -163,7 +175,7 @@ async function processMessage(lead, userInput) {
         console.log(`⚠️ No edge for canonical "${canonicalValue}", trying raw "${userInput}"`);
         edge = await findMatchingEdge(currentNode.node_id, userInput);
       }
-      if (!edge && (userInput.startsWith('PROPERTY_') || userInput.startsWith('VISIT_'))) {
+      if (!edge && (String(userInput).startsWith('PROPERTY_') || String(userInput).startsWith('VISIT_'))) {
         edge = await findMatchingEdge(currentNode.node_id, null, true);
       }
       // CRITICAL FIX: fallback to default edge so valid replies never get stuck
@@ -190,7 +202,7 @@ async function processMessage(lead, userInput) {
 
   // 2. For nodes without saveReply (send_message with buttons, property_welcome, etc.)
   edge = await findMatchingEdge(currentNode.node_id, userInput);
-  if (!edge && (userInput.startsWith('PROPERTY_') || userInput.startsWith('VISIT_'))) {
+  if (!edge && (String(userInput).startsWith('PROPERTY_') || String(userInput).startsWith('VISIT_'))) {
     edge = await findMatchingEdge(currentNode.node_id, null, true);
   }
 
