@@ -1,7 +1,7 @@
 const db = require('../db/queries');
 const contextResolver = require('./context-resolver');
 
-// Executor registry — maps node_type_code → executor module
+// Executor registry
 const EXECUTORS = {
   send_message: require('./node-executors/send-message'),
   collect_input: require('./node-executors/collect-input'),
@@ -17,23 +17,15 @@ const EXECUTORS = {
 
 function getExecutor(nodeType) {
   const executor = EXECUTORS[nodeType];
-  if (!executor) {
-    throw new Error(`No executor registered for node type: ${nodeType}`);
-  }
+  if (!executor) throw new Error(`No executor registered for node type: ${nodeType}`);
   return executor;
 }
 
-// Determine if a node expects user input after execution
 function nodeWaitsForInput(nodeType, config, result) {
-  if (result && typeof result.wait_for_input === 'boolean') {
-    return result.wait_for_input;
-  }
-
+  if (result && typeof result.wait_for_input === 'boolean') return result.wait_for_input;
   switch (nodeType) {
     case 'collect_input':
-      return true;
     case 'show_list':
-      return true;
     case 'book_appointment':
       return true;
     case 'send_message':
@@ -42,7 +34,6 @@ function nodeWaitsForInput(nodeType, config, result) {
     case 'request_callback':
     case 'assign_agent':
     case 'calculate_score':
-      return false;
     case 'end_conversation':
       return false;
     default:
@@ -50,7 +41,7 @@ function nodeWaitsForInput(nodeType, config, result) {
   }
 }
 
-// Extract and save special ID patterns (PROPERTY_123, VISIT_1) to context
+// Extract and save special IDs (PROPERTY_*, VISIT_*) to context
 async function extractAndSaveContext(lead, userInput) {
   if (userInput.startsWith('PROPERTY_')) {
     const propertyId = parseInt(userInput.replace('PROPERTY_', ''), 10);
@@ -74,21 +65,18 @@ async function extractAndSaveContext(lead, userInput) {
   }
 }
 
-// ══════════════════════════════════════════════════════
-// NEW: Global out‑of‑order input handler
-// ══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════
+// Out‑of‑order fallback (used only when current node fails)
+// ═══════════════════════════════════════════
 
 async function handleOutOfOrderInput(lead, userInput, activeFlow) {
   if (!activeFlow) return false;
-
-  // Fetch all nodes of the active flow
   const nodes = await db.getFlowNodes(activeFlow.flow_id);
   if (!nodes || nodes.length === 0) return false;
 
   const input = String(userInput).trim().toLowerCase();
   if (!input) return false;
 
-  // Look for a collect_input node whose options match the input
   for (const node of nodes) {
     if (node.node_type !== 'collect_input') continue;
     if (!node.config || !node.config.options) continue;
@@ -102,151 +90,130 @@ async function handleOutOfOrderInput(lead, userInput, activeFlow) {
 
     if (!matchedOption) continue;
 
-    // Found a match — this is an out‑of‑order answer
     console.log(`🔄 Out‑of‑order: "${userInput}" matches node ${node.node_code} (${node.node_name})`);
 
-    // Save/overwrite the answer for that node's field
+    // Save/overwrite answer
     if (node.config.field) {
       const valueToSave = String(matchedOption.value || matchedOption.label || matchedOption).trim();
       await db.saveLeadAnswer(lead.lead_id, node.config.field, valueToSave, node.node_id);
     }
 
-    // Find the outgoing edge for this input
+    // Find edge (exact or default)
     let edge = await db.getEdgeByInput(node.node_id, matchedOption.value || matchedOption.label);
+    if (!edge) edge = await db.getEdgeByInput(node.node_id, null);
     if (!edge) {
-      // Fallback to the default (null) edge
-      edge = await db.getEdgeByInput(node.node_id, null);
-    }
-    if (!edge) {
-      console.log('⚠️ No edge found for matched node, staying put');
+      console.log('⚠️ No edge found for matched node');
       return true;
     }
 
-    // Move the lead to the destination node
     await db.updateLeadNode(lead.lead_id, edge.to_node_id);
     const updatedLead = await db.getLeadById(lead.lead_id);
-
-    // Re‑execute from the new node (auto‑chain)
     const nextNode = await db.getNodeById(edge.to_node_id);
     await executeAndChain(updatedLead, nextNode);
-    return true; // handled
+    return true;
   }
-
   return false;
 }
 
-// Execute a node and auto-chain through default edges (max depth 5)
+// Execute a node and auto‑chain (max depth 5)
 async function executeAndChain(lead, node, depth = 0) {
   if (depth > 5) {
-    console.warn('⚠️ Max chain depth reached, stopping to prevent infinite loop');
+    console.warn('⚠️ Max chain depth reached');
     return;
   }
-
-  if (!node) {
-    console.error('❌ Cannot execute null node');
-    return;
-  }
+  if (!node) return;
 
   const executor = getExecutor(node.node_type);
   const resolvedConfig = await contextResolver.resolveConfig(node.config, lead.lead_id);
 
   console.log(`▶️ Executing node: ${node.node_code} (${node.node_type})`);
-
   const result = await executor.execute(lead, resolvedConfig);
-
   const waits = nodeWaitsForInput(node.node_type, resolvedConfig, result);
 
   if (waits) {
-    console.log(`⏸️ Node ${node.node_code} waiting for user input`);
+    console.log(`⏸️ Node ${node.node_code} waiting for input`);
     return;
   }
 
-  // Find default edge (user_input_value IS NULL)
   const defaultEdge = await db.getEdgeByInput(node.node_id, null);
-
   if (!defaultEdge) {
-    console.log(`🔚 No default edge from ${node.node_code}, flow paused`);
+    console.log(`🔚 No default edge from ${node.node_code}`);
     return;
   }
-
-  console.log(`⏭️ Auto-advancing: ${node.node_code} → ${defaultEdge.next_code || defaultEdge.to_node_id}`);
 
   await db.updateLeadNode(lead.lead_id, defaultEdge.to_node_id);
   const updatedLead = await db.getLeadById(lead.lead_id);
-
   const nextNode = await db.getNodeById(defaultEdge.to_node_id);
   await executeAndChain(updatedLead, nextNode, depth + 1);
 }
 
-// Handle incoming user message / button click
+// ═══════════════════════════════════════════
+// Main message processing (normal → then fallback)
+// ═══════════════════════════════════════════
+
 async function processMessage(lead, userInput) {
   const currentNode = await db.getNodeById(lead.current_node_id);
   if (!currentNode) {
-    console.error('❌ Lead has invalid current_node_id:', lead.current_node_id);
+    console.error('❌ Lead has invalid current_node_id');
     return;
   }
 
-  // ── TRY OUT‑OF‑ORDER FIRST ──
-  const activeFlow = await db.getActiveFlowForClient(lead.client_id);
-  if (activeFlow) {
-    const handled = await handleOutOfOrderInput(lead, userInput, activeFlow);
-    if (handled) return; // already processed, stop
-  }
-
-  // ── NORMAL PROCESSING ──
-  console.log(`📩 Processing input "${userInput}" at node ${currentNode.node_code}`);
+  console.log(`📩 Input "${userInput}" at node ${currentNode.node_code}`);
 
   const executor = getExecutor(currentNode.node_type);
   const resolvedConfig = await contextResolver.resolveConfig(currentNode.config, lead.lead_id);
 
-  // Step 1: Extract special IDs (PROPERTY_*, VISIT_*) into context
+  // Save any special IDs into context
   await extractAndSaveContext(lead, userInput);
 
-  // Step 2: If executor has saveReply, validate and save the answer
+  // 1. Try to process as a valid answer for the CURRENT node
+  let processed = false;
+
   if (typeof executor.saveReply === 'function') {
     const saveResult = await executor.saveReply(lead, resolvedConfig, userInput);
-
-    if (!saveResult.valid) {
-      console.log('❌ Input validation failed:', saveResult.error);
-      if (saveResult.error) {
-        const client = await db.getClientById(lead.client_id);
-        const send = require('../whatsapp/send');
-        const { textMessage } = require('../whatsapp/payloads');
-        await send({
-          phoneNumberId: client.meta_phone_number_id,
-          accessToken: client.meta_access_token,
-          payload: textMessage(lead.whatsapp_number, saveResult.error),
-        });
+    if (saveResult.valid) {
+      // Valid reply → find edge and proceed
+      let edge = await db.getEdgeByInput(currentNode.node_id, userInput);
+      if (!edge && (userInput.startsWith('PROPERTY_') || userInput.startsWith('VISIT_'))) {
+        edge = await db.getEdgeByInput(currentNode.node_id, null);
       }
-      return;
+      if (!edge) {
+        console.log('❌ No matching edge after valid reply');
+        return;
+      }
+      await db.updateLeadNode(lead.lead_id, edge.to_node_id);
+      const updatedLead = await db.getLeadById(lead.lead_id);
+      const nextNode = await db.getNodeById(edge.to_node_id);
+      await executeAndChain(updatedLead, nextNode);
+      processed = true;
+    } else {
+      // Invalid reply for current node – maybe out‑of‑order?
+      console.log('❌ Invalid reply for current node:', saveResult.error);
     }
-  }
-
-  // Step 3: Find matching edge (exact match first, then fallback)
-  let edge = await db.getEdgeByInput(currentNode.node_id, userInput);
-
-  // Fallback for PROPERTY_* or VISIT_* IDs
-  if (!edge && (userInput.startsWith('PROPERTY_') || userInput.startsWith('VISIT_'))) {
-    edge = await db.getEdgeByInput(currentNode.node_id, null);
+  } else {
+    // Nodes without saveReply (send_message with buttons, etc.)
+    let edge = await db.getEdgeByInput(currentNode.node_id, userInput);
+    if (!edge && (userInput.startsWith('PROPERTY_') || userInput.startsWith('VISIT_'))) {
+      edge = await db.getEdgeByInput(currentNode.node_id, null);
+    }
     if (edge) {
-      console.log(`🔄 Fallback to default edge for input: ${userInput}`);
+      await db.updateLeadNode(lead.lead_id, edge.to_node_id);
+      const updatedLead = await db.getLeadById(lead.lead_id);
+      const nextNode = await db.getNodeById(edge.to_node_id);
+      await executeAndChain(updatedLead, nextNode);
+      processed = true;
     }
   }
 
-  if (!edge) {
-    console.log('❌ No matching edge for input:', userInput, 'from node:', currentNode.node_code);
-    return;
+  // 2. If not processed yet, try out‑of‑order fallback
+  if (!processed) {
+    const activeFlow = await db.getActiveFlowForClient(lead.client_id);
+    const handled = await handleOutOfOrderInput(lead, userInput, activeFlow);
+    if (!handled) {
+      console.log('❌ No matching edge or out‑of‑order match for input:', userInput);
+      // Optionally send a generic “I didn’t understand” message
+    }
   }
-
-  console.log(`↪️ Transition: ${currentNode.node_code} → ${edge.next_code || edge.to_node_id}`);
-
-  // Step 4: Transition lead
-  await db.updateLeadNode(lead.lead_id, edge.to_node_id);
-  const updatedLead = await db.getLeadById(lead.lead_id);
-
-  // Step 5: Execute next node (with auto-chaining)
-  const nextNode = await db.getNodeById(edge.to_node_id);
-  await executeAndChain(updatedLead, nextNode);
 }
 
 module.exports = {
