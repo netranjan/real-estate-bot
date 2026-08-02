@@ -1,5 +1,17 @@
 const db = require('../db/queries');
 
+// ── Config normalization helper ──
+// Strips spaces, lowercases, and splits comma-separated strings.
+// "3 BHK"  → ["3bhk"]
+// "3BHK,4BHK" → ["3bhk","4bhk"]
+function extractConfigs(val) {
+  const str = String(val).toLowerCase();
+  if (str.includes(',')) {
+    return str.split(',').map(s => s.trim().replace(/\s+/g, ''));
+  }
+  return [str.replace(/\s+/g, '')];
+}
+
 // ── Free‑text price parser (INR) ──
 function parsePriceInput(input) {
   if (!input) return null;
@@ -109,7 +121,7 @@ async function getBrochureUrl(propertyId) {
   return media.rows.length > 0 ? media.rows[0].asset_url : null;
 }
 
-// ── Smart filtering (unchanged) ──
+// ── Smart filtering (FIXED) ──
 async function getSmartFilteredProperties(clientId, leadAnswers, matchDimensions) {
   if (!matchDimensions || matchDimensions.length === 0) {
     return db.getPropertiesByClient(clientId);
@@ -128,9 +140,9 @@ async function getSmartFilteredProperties(clientId, leadAnswers, matchDimensions
           return prop.price_min <= budget.max && prop.price_max >= budget.min;
         }
         case 'configuration': {
-          const configs = prop.configuration_types || [];
-          const want = String(leadValue).toLowerCase();
-          return configs.some(c => String(c).toLowerCase() === want);
+          const wantConfigs = extractConfigs(leadValue);
+          const propConfigs = (prop.configuration_types || []).flatMap(extractConfigs);
+          return wantConfigs.some(w => propConfigs.includes(w));
         }
         case 'possession': {
           const val = String(leadValue).toLowerCase();
@@ -155,7 +167,7 @@ async function getSmartFilteredProperties(clientId, leadAnswers, matchDimensions
   });
 }
 
-// ── Old filter (unchanged) ──
+// ── Old filter (FIXED) ──
 async function getFilteredProperties(clientId, conditions, leadAnswers) {
   if (!conditions || conditions.length === 0) {
     return db.getPropertiesByClient(clientId);
@@ -178,7 +190,7 @@ async function getFilteredProperties(clientId, conditions, leadAnswers) {
       }
       
       if (rule.field === 'configuration') {
-        fieldValue = prop.configuration_types;
+        fieldValue = prop.configuration_types || [];
       } else if (rule.field === 'possession') {
         fieldValue = prop.possession_date ? 'future' : 'ready';
         if (prop.possession_date) {
@@ -196,10 +208,22 @@ async function getFilteredProperties(clientId, conditions, leadAnswers) {
       }
       
       switch (rule.operator) {
-        case 'eq': return String(fieldValue).toLowerCase() === String(compareValue).toLowerCase();
+        case 'eq': {
+          if (rule.field === 'configuration' && Array.isArray(fieldValue)) {
+            const want = extractConfigs(compareValue);
+            const have = fieldValue.flatMap(extractConfigs);
+            return want.some(w => have.includes(w));
+          }
+          return String(fieldValue).toLowerCase() === String(compareValue).toLowerCase();
+        }
         case 'neq': return String(fieldValue).toLowerCase() !== String(compareValue).toLowerCase();
         case 'contains': {
           if (Array.isArray(fieldValue)) {
+            if (rule.field === 'configuration') {
+              const want = extractConfigs(compareValue);
+              const have = fieldValue.flatMap(extractConfigs);
+              return want.some(w => have.some(h => h.includes(w)));
+            }
             return fieldValue.some(v => String(v).toLowerCase().includes(String(compareValue).toLowerCase()));
           }
           return String(fieldValue).toLowerCase().includes(String(compareValue).toLowerCase());
@@ -211,6 +235,10 @@ async function getFilteredProperties(clientId, conditions, leadAnswers) {
         case 'in': {
           const vals = String(compareValue).split(',').map(v => v.trim().toLowerCase());
           if (Array.isArray(fieldValue)) {
+            if (rule.field === 'configuration') {
+              const have = fieldValue.flatMap(extractConfigs);
+              return vals.some(v => have.includes(v.replace(/\s+/g, '')));
+            }
             return fieldValue.some(v => vals.includes(String(v).toLowerCase()));
           }
           return vals.includes(String(fieldValue).toLowerCase());

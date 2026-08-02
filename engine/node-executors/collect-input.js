@@ -88,7 +88,7 @@ async function saveReply(lead, config, userInput) {
     return { valid: true, field, value: valueToSave };
   }
 
-  // No match → reject with hint
+  // No match → reject with helpful hint
   const validExamples = options
     .slice(0, 3)
     .map(o => String(o.label || o.value || o))

@@ -1,5 +1,5 @@
 <div class="space-y-6 fade-in">
-  <!-- Header (unchanged) -->
+  <!-- Header -->
   <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
     <div class="flex justify-between items-start flex-wrap gap-4">
       <div>
@@ -7,7 +7,9 @@
         <p class="text-sm text-slate-500">Property ID: <span class="font-mono text-xs"><%= property.property_id %></span></p>
       </div>
       <div class="flex gap-2">
-        <a href="/admin/properties/<%= property.property_id %>/slots?clientId=<%= clientId %>" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium">🕒 Manage Slots</a>
+        <a href="/admin/properties/<%= property.property_id %>/slots?clientId=<%= clientId %>" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+          🕒 Manage Slots
+        </a>
         <a href="/admin/properties?clientId=<%= clientId %>" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">← Back to Properties</a>
       </div>
     </div>
@@ -76,12 +78,16 @@
                     asset.asset_type === 'brochure' ? '📄' : '📎' %>
               </span>
               <div>
-                <p class="text-sm font-medium text-slate-800"><%= asset.asset_name || asset.asset_url %></p>
+                <p class="text-sm font-medium text-slate-800">
+                  <%= asset.asset_name || asset.asset_url %>
+                </p>
                 <p class="text-xs text-slate-500">
                   Type: <%= asset.asset_type %> | 
                   <% if (asset.asset_url) { %>
                     <a href="<%= asset.asset_url %>" target="_blank" class="text-blue-600 hover:underline">Open</a>
-                  <% } else { %> No URL <% } %>
+                  <% } else { %>
+                    No URL
+                  <% } %>
                 </p>
               </div>
             </div>
@@ -94,13 +100,13 @@
     <% } %>
   </div>
 
-  <!-- Welcome Message (unchanged) -->
+  <!-- Welcome Message -->
   <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
     <h3 class="text-lg font-semibold text-slate-800 mb-2">Welcome Message</h3>
     <p class="text-sm text-slate-600 whitespace-pre-wrap"><%= property.welcome_message || 'Not set' %></p>
   </div>
 
-  <!-- Slots Summary (unchanged) -->
+  <!-- Slots Summary -->
   <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
     <h3 class="text-lg font-semibold text-slate-800 mb-4">Visit Slots</h3>
     <% if (slots && slots.length) { %>

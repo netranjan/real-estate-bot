@@ -1,174 +1,276 @@
-<!-- views/admin/partials/node-editor-modal.ejs -->
-<div id="step-modal" class="fixed inset-0 bg-black/50 hidden z-50 flex justify-end">
-  <div class="bg-white w-full max-w-3xl h-full overflow-auto shadow-2xl flex flex-col">
-
-    <!-- Header -->
-    <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 flex-shrink-0">
-      <h3 class="font-bold text-slate-800 text-lg" id="modal-title">Add Step</h3>
-      <button onclick="closeModal()"
-        class="text-slate-400 hover:text-slate-600 text-2xl leading-none px-2 py-1 transition">&times;</button>
+<div id="node-editor-modal" class="fixed inset-0 bg-black/50 flex items-start justify-center z-50 pt-10 hidden">
+  <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-lg font-bold text-slate-800" id="modal-title">Edit Node</h3>
+      <button onclick="closeNodeEditor()" class="text-slate-400 hover:text-slate-600 text-xl">✕</button>
     </div>
 
-    <!-- Body -->
-    <div class="flex-1 p-6 space-y-5 overflow-auto">
-      <!-- Type Picker -->
-      <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-2">What should this step do?</label>
-        <div class="grid grid-cols-4 sm:grid-cols-7 gap-2">
-          <% const typeBtns=[ { code: 'question' , icon: '❓' , label: 'Question' }, { code: 'message' , icon: '📝' ,
-            label: 'Message' }, { code: 'property_list' , icon: '🏠' , label: 'Properties' }, { code: 'property_welcome'
-            , icon: '🏢' , label: 'Welcome' }, { code: 'brochure' , icon: '📄' , label: 'Brochure' }, {
-            code: 'book_visit' , icon: '📅' , label: 'Visit' }, { code: 'callback' , icon: '📞' , label: 'Callback' }, {
-            code: 'end_conversation' , icon: '🛑' , label: 'End' } ]; %>
-            <% typeBtns.forEach(t=> { %>
-              <button type="button" onclick="setStepType('<%= t.code %>')" data-type="<%= t.code %>"
-                class="type-btn border-2 border-slate-200 rounded-lg p-2 text-center hover:border-purple-400 hover:bg-purple-50 transition">
-                <div class="text-xl mb-1">
-                  <%= t.icon %>
-                </div>
-                <div class="text-[11px] font-medium text-slate-700">
-                  <%= t.label %>
-                </div>
-              </button>
-              <% }) %>
+    <form id="node-editor-form" method="POST" action="">
+      <input type="hidden" name="flow_id" id="modal-flow-id">
+
+      <!-- Node Name -->
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-slate-700 mb-1">Node Name</label>
+        <input type="text" name="step_name" id="modal-step-name" required class="w-full px-3 py-2 border border-slate-300 rounded-lg">
+      </div>
+
+      <!-- Message Text (visible for most types) -->
+      <div id="modal-text-group" class="mb-4">
+        <label class="block text-sm font-medium text-slate-700 mb-1">Message Text</label>
+        <textarea name="message_text" id="modal-text" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg"></textarea>
+      </div>
+
+      <!-- Options (for collect_input / property_welcome / book_appointment) -->
+      <div id="modal-options-group" class="mb-4 hidden">
+        <label class="block text-sm font-medium text-slate-700 mb-1" id="modal-options-label">Options</label>
+        <p class="text-xs text-slate-400 mb-2" id="modal-options-hint"></p>
+
+        <!-- Standard textarea for collect_input / book_appointment -->
+        <div id="modal-options-textarea" class="hidden">
+          <textarea name="options" id="modal-options" rows="4" class="w-full px-3 py-2 border border-slate-300 rounded-lg"></textarea>
+        </div>
+
+        <!-- Button builder for property_welcome -->
+        <div id="modal-buttons-builder" class="hidden">
+          <div id="buttons-container" class="space-y-3"></div>
+          <button type="button" onclick="addButtonRow()" class="mt-2 text-sm text-blue-600 hover:underline">+ Add Button</button>
+          <p class="text-xs text-slate-500 mt-2">💡 Each button must have an action from the dropdown. The system uses these IDs to route the conversation reliably.</p>
         </div>
       </div>
 
-      <!-- Step Name -->
-      <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-1">
-          Step Name <span class="text-slate-400 font-normal text-xs">(auto-filled from message)</span>
-        </label>
-        <input type="text" id="step-name" placeholder="e.g. Ask Budget"
-          class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm">
+      <!-- Save Field (for collect_input) -->
+      <div id="modal-field-group" class="mb-4 hidden">
+        <label class="block text-sm font-medium text-slate-700 mb-1">Save to field</label>
+        <input type="text" name="save_field" id="modal-field" class="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="e.g., configuration">
       </div>
 
-      <!-- Bot Message (hidden for end_conversation) -->
-      <div id="box-message">
-        <label class="block text-sm font-semibold text-slate-700 mb-1">Bot Message</label>
-        <textarea id="step-message" rows="3" placeholder="Type what the bot should say…"
-          class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm resize-y"></textarea>
-        <div id="preview-msg-container"
-          class="mt-3 bg-[#e5ddd5] rounded-2xl p-4 max-w-sm mx-auto border border-slate-200">
-          <div class="bg-white rounded-lg rounded-tl-none px-3 py-2 shadow-sm max-w-[85%]">
-            <p class="text-sm text-slate-800" id="preview-msg">Type above to see preview…</p>
+      <!-- List mode / dimensions (for show_list) -->
+      <div id="modal-list-group" class="mb-4 hidden">
+        <label class="block text-sm font-medium text-slate-700 mb-1">List Mode</label>
+        <select name="list-mode" id="modal-list-mode" class="w-full px-3 py-2 border border-slate-300 rounded-lg mb-2">
+          <option value="all">Show all properties</option>
+          <option value="smart">Smart filter based on answers</option>
+        </select>
+        <div id="modal-match-dimensions" class="hidden">
+          <label class="block text-sm font-medium text-slate-700 mb-1">Match Dimensions</label>
+          <div class="flex flex-wrap gap-2">
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" name="match_dimensions[]" value="budget_range"> Budget</label>
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" name="match_dimensions[]" value="configuration"> Configuration</label>
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" name="match_dimensions[]" value="possession"> Possession</label>
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" name="match_dimensions[]" value="location"> Location</label>
           </div>
-          <div class="flex flex-wrap gap-1.5 mt-2 max-w-[85%]" id="preview-opts"></div>
         </div>
       </div>
 
-      <!-- Question Options -->
-      <div id="box-question" class="hidden space-y-3">
-        <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-1">
-            Button Options <span class="text-slate-400 font-normal text-xs">(one per line)</span>
-          </label>
-          <textarea id="step-options" rows="3" placeholder="Under ₹50 Lakhs&#10;₹50L - ₹1 Crore&#10;Above ₹1 Crore"
-            class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm font-mono resize-y"></textarea>
-        </div>
-        <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Save user's answer as:</label>
-          <select id="save-field"
-            class="w-full px-2 py-1.5 border border-slate-300 rounded text-xs bg-white focus:ring-2 focus:ring-purple-500 outline-none">
-            <option value="">Don't save</option>
-            <option value="budget">💰 budget</option>
-            <option value="configuration">🏠 configuration</option>
-            <option value="requirement_type">🎯 requirement_type</option>
-            <option value="timeline">📅 timeline</option>
-            <option value="location">📍 location</option>
-            <option value="possession">🔑 possession</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Property List Filter -->
-      <div id="box-property_list" class="hidden space-y-3">
-        <label class="block text-sm font-semibold text-slate-700">Which properties to show?</label>
-        <div class="space-y-2">
-          <label
-            class="flex items-start gap-3 p-3 border-2 border-slate-200 rounded-xl cursor-pointer hover:border-green-400 hover:bg-green-50 transition">
-            <input type="radio" name="list-mode" value="all" checked class="mt-0.5 w-4 h-4 text-green-600"
-              onchange="toggleMatchBox()">
-            <div>
-              <p class="text-sm font-semibold text-slate-800">🏠 Show ALL active properties</p>
-              <p class="text-xs text-slate-500">Ignore lead answers. Show everything.</p>
-            </div>
-          </label>
-          <label
-            class="flex items-start gap-3 p-3 border-2 border-slate-200 rounded-xl cursor-pointer hover:border-purple-400 hover:bg-purple-50 transition">
-            <input type="radio" name="list-mode" value="filtered" class="mt-0.5 w-4 h-4 text-purple-600"
-              onchange="toggleMatchBox()">
-            <div class="flex-1">
-              <p class="text-sm font-semibold text-slate-800">🔍 Smart Match — Filter by lead answers</p>
-              <p class="text-xs text-slate-500 mb-2">Only show properties that fit what the lead already told you.</p>
-              <div id="match-dimensions" class="hidden space-y-2 ml-6">
-                <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                  <input type="checkbox" value="budget_range"
-                    class="match-dim w-4 h-4 text-purple-600 rounded border-slate-300">
-                  <span>💰 Match Budget Range</span>
-                </label>
-                <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                  <input type="checkbox" value="configuration"
-                    class="match-dim w-4 h-4 text-purple-600 rounded border-slate-300">
-                  <span>🏠 Match Configuration (BHK)</span>
-                </label>
-                <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                  <input type="checkbox" value="possession"
-                    class="match-dim w-4 h-4 text-purple-600 rounded border-slate-300">
-                  <span>📅 Match Possession Status</span>
-                </label>
-                <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                  <input type="checkbox" value="location"
-                    class="match-dim w-4 h-4 text-purple-600 rounded border-slate-300">
-                  <span>📍 Match Location</span>
-                </label>
-                <p class="text-xs text-slate-400">If the lead hasn't answered a question yet, that rule is skipped.</p>
-              </div>
-            </div>
-          </label>
-        </div>
-      </div>
-
-      <!-- Property Welcome Buttons -->
-      <div id="box-property_welcome" class="hidden space-y-3">
-        <label class="block text-sm font-semibold text-slate-700 mb-1">
-          Action Buttons <span class="text-slate-400 font-normal text-xs">(one per line)</span>
-        </label>
-        <textarea id="step-buttons" rows="2"
-          placeholder="📅 Book Site Visit&#10;📄 Get Brochure&#10;📞 Request Callback"
-          class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm font-mono resize-y"></textarea>
-      </div>
-
-      <!-- Document URL -->
-      <div id="box-brochure" class="hidden">
-        <label class="block text-sm font-semibold text-slate-700 mb-1">PDF URL</label>
-        <input type="url" id="step-doc" placeholder="https://cdn.example.com/brochure.pdf"
-          class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm">
-      </div>
-
-      <!-- End Conversation -->
-      <div id="box-end_conversation" class="hidden">
-        <p class="text-sm text-slate-500">This will safely end the conversation. No further input is expected.</p>
+      <!-- Document URL (for send_document) -->
+      <div id="modal-document-group" class="mb-4 hidden">
+        <label class="block text-sm font-medium text-slate-700 mb-1">Document URL (or leave empty to send property assets)</label>
+        <input type="url" name="document_url" id="modal-document-url" class="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="https://...">
       </div>
 
       <!-- Submit -->
-      <div class="pt-4 border-t border-slate-200">
-        <button onclick="submitStep()"
-          class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-lg text-sm font-medium shadow-sm w-full sm:w-auto transition">
-          Save Step
-        </button>
+      <div class="flex justify-end gap-3 pt-4">
+        <button type="button" onclick="closeNodeEditor()" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium">Save</button>
       </div>
-    </div>
+    </form>
   </div>
 </div>
 
-<!-- Hidden form for submission -->
-<form id="modal-form" action="/admin/flows/steps?clientId=<%= clientId %>" method="POST" class="hidden">
-  <input type="hidden" name="clientId" value="<%= clientId %>">
-  <input type="hidden" name="flow_id" value="<%= activeFlow ? activeFlow.flow_id : '' %>">
-  <input type="hidden" name="step_type" id="form-step-type">
-  <input type="hidden" name="step_name" id="form-step-name">
-  <input type="hidden" name="save_field" id="form-save-field">
-  <textarea name="message_text" id="form-message"></textarea>
-  <textarea name="options" id="form-options"></textarea>
-</form>
+<script>
+// Predefined canonical actions with descriptions
+const KNOWN_ACTIONS = [
+  { id: 'BROCHURE', desc: 'Send brochure / documents' },
+  { id: 'VISIT',    desc: 'Book a site visit' },
+  { id: 'CALL',     desc: 'Request a callback' },
+  { id: 'BUY',      desc: 'Express buying interest' },
+  { id: 'RENT',     desc: 'Express renting interest' }
+];
+
+let buttonRowCount = 0;
+
+// Add a new button row to the builder
+function addButtonRow(label = '', action = '') {
+  buttonRowCount++;
+  const container = document.getElementById('buttons-container');
+  const row = document.createElement('div');
+  row.className = 'flex items-start gap-2';
+  row.id = `btn-row-${buttonRowCount}`;
+
+  // Build action dropdown options
+  const actionOptions = KNOWN_ACTIONS.map(a => 
+    `<option value="${a.id}" ${a.id === action ? 'selected' : ''}>${a.id} – ${a.desc}</option>`
+  ).join('');
+
+  row.innerHTML = `
+    <input type="text" name="button_label[]" value="${escapeHtml(label)}" placeholder="Button label" class="flex-1 px-2 py-1 border border-slate-300 rounded text-sm">
+    <select name="button_action[]" class="w-48 px-2 py-1 border border-slate-300 rounded text-sm" onchange="showActionDesc(this, ${buttonRowCount})">
+      <option value="">-- Select Action --</option>
+      ${actionOptions}
+    </select>
+    <button type="button" onclick="document.getElementById('btn-row-${buttonRowCount}').remove()" class="text-red-500 hover:text-red-700">✕</button>
+  `;
+  container.appendChild(row);
+
+  // If an action is already selected, show its description below
+  if (action) {
+    const select = row.querySelector('select');
+    showActionDesc(select, buttonRowCount);
+  }
+}
+
+// Show the action description below the dropdown
+function showActionDesc(select, rowId) {
+  // Remove any previous description for this row
+  const existing = document.getElementById(`action-desc-${rowId}`);
+  if (existing) existing.remove();
+
+  const value = select.value;
+  if (!value) return;
+  const action = KNOWN_ACTIONS.find(a => a.id === value);
+  if (action) {
+    const desc = document.createElement('p');
+    desc.id = `action-desc-${rowId}`;
+    desc.className = 'text-xs text-slate-500 mt-1 ml-2';
+    desc.textContent = `✅ ${action.desc}`;
+    select.parentElement.appendChild(desc);
+  }
+}
+
+// Escape HTML to prevent XSS
+function escapeHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Close the modal
+function closeNodeEditor() {
+  document.getElementById('node-editor-modal').classList.add('hidden');
+  document.getElementById('node-editor-form').action = '';
+}
+
+// Open the modal and populate fields based on node type and existing config
+function openNodeEditor(node, flowId) {
+  const modal = document.getElementById('node-editor-modal');
+  const form = document.getElementById('node-editor-form');
+  const title = document.getElementById('modal-title');
+  const nameField = document.getElementById('modal-step-name');
+  const textGroup = document.getElementById('modal-text-group');
+  const textField = document.getElementById('modal-text');
+  const optionsGroup = document.getElementById('modal-options-group');
+  const optionsLabel = document.getElementById('modal-options-label');
+  const optionsHint = document.getElementById('modal-options-hint');
+  const optionsTextareaDiv = document.getElementById('modal-options-textarea');
+  const buttonsBuilderDiv = document.getElementById('modal-buttons-builder');
+  const optionsField = document.getElementById('modal-options');
+  const fieldGroup = document.getElementById('modal-field-group');
+  const fieldInput = document.getElementById('modal-field');
+  const listGroup = document.getElementById('modal-list-group');
+  const listMode = document.getElementById('modal-list-mode');
+  const matchDimensionsDiv = document.getElementById('modal-match-dimensions');
+  const docGroup = document.getElementById('modal-document-group');
+  const docUrl = document.getElementById('modal-document-url');
+  const flowIdField = document.getElementById('modal-flow-id');
+
+  // Reset everything to defaults
+  textGroup.classList.remove('hidden');
+  optionsGroup.classList.add('hidden');
+  optionsTextareaDiv.classList.add('hidden');
+  buttonsBuilderDiv.classList.add('hidden');
+  fieldGroup.classList.add('hidden');
+  listGroup.classList.add('hidden');
+  docGroup.classList.add('hidden');
+  matchDimensionsDiv.classList.add('hidden');
+  document.getElementById('buttons-container').innerHTML = '';
+  buttonRowCount = 0;
+
+  // Set common values
+  flowIdField.value = flowId;
+  title.textContent = node ? 'Edit Node' : 'Add Node';
+  nameField.value = node ? node.node_name : '';
+  textField.value = node?.config?.text || '';
+
+  if (node) {
+    // Set form action for update
+    form.action = `/admin/flows/steps/${node.node_id}/update`;
+
+    // Show/hide sections based on node type
+    switch (node.node_type) {
+      case 'collect_input':
+        optionsGroup.classList.remove('hidden');
+        optionsTextareaDiv.classList.remove('hidden');
+        optionsLabel.textContent = 'Options';
+        optionsHint.textContent = 'One per line. Format: Label : Value (or just Label)';
+        if (node.config?.options) {
+          optionsField.value = node.config.options.map(o => o.label && o.value ? `${o.label} : ${o.value}` : (o.label || o.value || '')).join('\n');
+        }
+        fieldGroup.classList.remove('hidden');
+        fieldInput.value = node.config?.field || '';
+        break;
+
+      case 'property_welcome':
+        optionsGroup.classList.remove('hidden');
+        buttonsBuilderDiv.classList.remove('hidden');
+        optionsLabel.textContent = 'Buttons';
+        optionsHint.textContent = 'Each button must have an action from the dropdown.';
+        // Load existing buttons
+        const buttons = node.config?.buttons || [];
+        if (buttons.length > 0) {
+          buttons.forEach(b => addButtonRow(b.title, b.id));
+        } else {
+          addButtonRow();
+        }
+        break;
+
+      case 'book_appointment':
+        optionsGroup.classList.remove('hidden');
+        optionsTextareaDiv.classList.remove('hidden');
+        optionsLabel.textContent = 'Visit Slots';
+        optionsHint.textContent = 'One slot per line.';
+        if (node.config?.options) {
+          optionsField.value = node.config.options.map(o => o.label || '').join('\n');
+        }
+        break;
+
+      case 'show_list':
+        listGroup.classList.remove('hidden');
+        if (node.config?.filter_mode === 'smart') {
+          listMode.value = 'smart';
+          matchDimensionsDiv.classList.remove('hidden');
+          const dims = node.config.match_dimensions || [];
+          document.querySelectorAll('#modal-match-dimensions input[type="checkbox"]').forEach(cb => {
+            cb.checked = dims.includes(cb.value);
+          });
+        } else {
+          listMode.value = 'all';
+        }
+        break;
+
+      case 'send_document':
+        docGroup.classList.remove('hidden');
+        docUrl.value = node.config?.document_url_field || '';
+        break;
+
+      default:
+        // send_message, end_conversation, etc. – just show text
+        break;
+    }
+  } else {
+    // New node
+    form.action = `/admin/flows/steps`;
+    optionsGroup.classList.remove('hidden');
+    optionsTextareaDiv.classList.remove('hidden');
+    optionsLabel.textContent = 'Options';
+    optionsHint.textContent = 'One per line. Format: Label : Value';
+    fieldGroup.classList.remove('hidden');
+  }
+
+  // Show list mode toggle
+  if (listGroup.classList.contains('hidden') === false) {
+    listMode.onchange = function() {
+      matchDimensionsDiv.classList.toggle('hidden', this.value !== 'smart');
+    };
+  }
+
+  modal.classList.remove('hidden');
+}
+</script>

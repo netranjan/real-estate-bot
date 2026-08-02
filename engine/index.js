@@ -70,7 +70,7 @@ async function handleIncomingMessage(body) {
       return;
     }
 
-    // ── FIX: Only auto‑start on the very first message ──
+    // Only auto‑start on the very first message (no answers yet, at start node, not already started)
     const answersCount = (await db.getLeadAnswers(lead.lead_id)).length;
     const flowStarted = lead.context_data?.flow_started;
 
@@ -79,7 +79,7 @@ async function handleIncomingMessage(body) {
       if (startNode) {
         console.log('🚀 First message – auto-starting flow');
         await stateMachine.executeAndChain(lead, startNode);
-        // Mark that the flow has been started (so the next message is not treated as first)
+        // Mark that the flow has been started
         await leadService.saveToContext(lead.lead_id, 'flow_started', true);
         return;
       }
