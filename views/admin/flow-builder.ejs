@@ -1,0 +1,1196 @@
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #f8fafc;
+  }
+
+  .container {
+    max-width: 64rem;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+  }
+
+  .header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .header h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1e293b;
+  }
+
+  .header p {
+    font-size: 0.875rem;
+    color: #64748b;
+  }
+
+  .header-right {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border: 1px solid transparent;
+    cursor: pointer;
+    text-decoration: none;
+  }
+
+  .btn-primary {
+    background: #7c3aed;
+    color: white;
+  }
+
+  .btn-secondary {
+    background: white;
+    border-color: #cbd5e1;
+    color: #334155;
+  }
+
+  .btn-success {
+    background: #16a34a;
+    color: white;
+  }
+
+  .btn-danger {
+    background: white;
+    border-color: #cbd5e1;
+    color: #dc2626;
+  }
+
+  .btn-outline {
+    background: #e0e7ff;
+    color: #4338ca;
+    border-color: #c7d2fe;
+  }
+
+  .select-box,
+  .input-box,
+  .textarea-box {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    background: white;
+    outline: none;
+    width: 100%;
+  }
+
+  .textarea-box {
+    resize: vertical;
+  }
+
+  .flex-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .step-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .step-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+  }
+
+  .step-main {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+  }
+
+  .step-drag {
+    cursor: grab;
+    color: #94a3b8;
+    font-size: 1.2rem;
+    user-select: none;
+  }
+
+  .step-icon {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+
+  .step-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .step-name {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: #1e293b;
+  }
+
+  .step-badge {
+    font-size: 0.625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+  }
+
+  .step-text {
+    font-size: 0.75rem;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 0.15rem;
+  }
+
+  .step-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  .editor-panel {
+    border-top: 1px solid #e2e8f0;
+    padding: 1rem;
+    background: #f8fafc;
+    border-radius: 0 0 0.75rem 0.75rem;
+    display: none;
+  }
+
+  .editor-panel.open {
+    display: block;
+  }
+
+  .form-group {
+    margin-bottom: 0.75rem;
+  }
+
+  .form-label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #334155;
+    margin-bottom: 0.25rem;
+  }
+
+  .form-hint {
+    font-size: 0.75rem;
+    color: #64748b;
+  }
+
+  .option-row,
+  .media-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.4rem;
+  }
+
+  .option-row input,
+  .media-row input,
+  .media-row select {
+    padding: 0.35rem 0.5rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.375rem;
+    font-size: 0.8rem;
+    flex: 1;
+  }
+
+  .remove-btn {
+    color: #ef4444;
+    font-weight: 700;
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-size: 1rem;
+  }
+
+  .add-link {
+    font-size: 0.8rem;
+    color: #7c3aed;
+    cursor: pointer;
+  }
+
+  .conn-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: #f1f5f9;
+    border-radius: 0.375rem;
+    padding: 0.15rem 0.5rem;
+    font-size: 0.75rem;
+    color: #475569;
+    margin: 0.15rem;
+  }
+
+  .conn-tag button {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+  }
+
+  .blueprint-box {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    overflow: auto;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+    margin-bottom: 1.5rem;
+    display: none;
+  }
+
+  .blueprint-box.active {
+    display: block;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 4rem 0;
+    background: white;
+    border-radius: 0.75rem;
+    border: 1px solid #e2e8f0;
+  }
+</style>
+
+<% const typeMeta={ collect_input: { icon:'❓', color:'purple', label:'Question' }, send_message: { icon:'💬',
+  color:'blue', label:'Message' }, show_list: { icon:'🏠', color:'green', label:'Property List' }, property_welcome: {
+  icon:'🏢', color:'indigo', label:'Welcome' }, send_document: { icon:'📄', color:'orange', label:'Document' },
+  book_appointment: { icon:'📅', color:'pink', label:'Book Visit' }, request_callback: { icon:'📞', color:'teal',
+  label:'Callback' }, end_conversation: { icon:'🛑', color:'red', label:'End' }, assign_agent: { icon:'👤',
+  color:'gray', label:'Agent' }, calculate_score: { icon:'⭐', color:'yellow', label:'Score' } }; %>
+
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>Flow Builder</h1>
+        <p>Design your WhatsApp conversation flow</p>
+      </div>
+      <div class="header-right">
+        <form method="GET" action="/admin/flows" class="flex-row">
+          <input type="hidden" name="clientId" value="<%= clientId %>">
+          <select name="flowId" onchange="this.form.submit()" class="select-box" style="min-width:200px;">
+            <option value="">-- Select a flow --</option>
+            <% flows.forEach(f=> { %>
+              <option value="<%= f.flow_id %>" <%=(activeFlow && activeFlow.flow_id==f.flow_id) ? 'selected' : '' %>>
+                <%= f.flow_name %>
+                  <%= f.is_active ? '✅' : '' %>
+              </option>
+              <% }) %>
+          </select>
+        </form>
+        <button onclick="toggleNewFlow()" class="btn btn-success">+ New</button>
+        <div id="new-flow-form" style="display:none;" class="flex-row">
+          <form action="/admin/flows" method="POST" class="flex-row">
+            <input type="hidden" name="clientId" value="<%= clientId %>">
+            <input type="text" name="flow_name" placeholder="Flow name" required class="input-box" style="width:10rem;">
+            <button type="submit" class="btn btn-primary">Create</button>
+          </form>
+        </div>
+        <% if (activeFlow) { %>
+          <button onclick="toggleBlueprint()" class="btn btn-outline">🧾 Blueprint</button>
+          <% if (!activeFlow.is_active) { %>
+            <form action="/admin/flows/<%= activeFlow.flow_id %>/activate" method="POST">
+              <input type="hidden" name="clientId" value="<%= clientId %>">
+              <button type="submit" class="btn btn-primary">Activate</button>
+            </form>
+            <% } else { %>
+              <span
+                style="padding:0.5rem 0.75rem; background:#dcfce7; color:#166534; border-radius:0.5rem; font-size:0.875rem; font-weight:500;">Active</span>
+              <% } %>
+                <form action="/admin/flows/<%= activeFlow.flow_id %>/clone" method="POST">
+                  <input type="hidden" name="clientId" value="<%= clientId %>">
+                  <button type="submit" class="btn btn-secondary">📋 Clone</button>
+                </form>
+                <form action="/admin/flows/<%= activeFlow.flow_id %>/delete" method="POST"
+                  onsubmit="return confirm('Delete?')">
+                  <input type="hidden" name="clientId" value="<%= clientId %>">
+                  <button type="submit" class="btn btn-danger">🗑️</button>
+                </form>
+                <% } %>
+      </div>
+    </div>
+
+    <% if (activeFlow) { %>
+      <div id="blueprint-panel" class="blueprint-box">
+        <div id="flow-canvas" style="position:relative; min-height:600px; width:100%;">
+          <svg id="flow-edges"
+            style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:0; overflow:visible;"></svg>
+          <div id="flow-nodes" style="position:absolute; top:0; left:0; z-index:1;"></div>
+          <div id="flow-labels" style="position:absolute; top:0; left:0; z-index:2; pointer-events:none;"></div>
+        </div>
+      </div>
+      <script>
+        window.__flowSteps = <% - JSON.stringify(steps) %>;
+        window.__flowMeta = <% - JSON.stringify(typeMeta) %>;
+      </script>
+
+      <div id="sortable-steps" class="step-list">
+        <% steps.forEach((step, idx)=> {
+          const meta = typeMeta[step.node_type] || typeMeta.send_message;
+          const config = step.config || {};
+          %>
+          <div class="step-card" data-node-id="<%= step.node_id %>" data-step-type="<%= step.node_type %>">
+            <div class="step-main">
+              <div class="step-drag">⠿</div>
+              <div class="step-icon"
+                style="background:#<%= meta.color %>-100; color:#<%= meta.color %>-600; border:1px solid #<%= meta.color %>-200;">
+                <%= meta.icon %>
+              </div>
+              <div class="step-info">
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                  <span class="step-name">
+                    <%= step.node_name || 'Untitled' %>
+                  </span>
+                  <span class="step-badge"
+                    style="background:#<%= meta.color %>-50; color:#<%= meta.color %>-700; border:1px solid #<%= meta.color %>-200;">
+                    <%= meta.label %>
+                  </span>
+                </div>
+                <% if (config.text) { %>
+                  <div class="step-text">
+                    <%= config.text %>
+                  </div>
+                  <% } %>
+              </div>
+              <div class="step-actions">
+                <span
+                  style="font-size:0.75rem; color:#64748b; background:#f1f5f9; padding:0.2rem 0.5rem; border-radius:9999px;">🔗
+                  <%= (step.connections||[]).length %>
+                </span>
+                <button onclick="toggleEdit(<%= step.node_id %>)" class="btn btn-secondary"
+                  style="font-size:0.75rem;">Edit</button>
+                <form action="/admin/flows/steps/<%= step.node_id %>/delete?clientId=<%= clientId %>" method="POST"
+                  onsubmit="return confirm('Delete?')" style="display:inline;">
+                  <button type="submit" class="btn btn-danger" style="font-size:0.75rem;">Delete</button>
+                </form>
+              </div>
+            </div>
+
+            <div id="editor-<%= step.node_id %>" class="editor-panel">
+              <div style="display:flex; align-items:center; gap:0.5rem; font-size:0.875rem; margin-bottom:1rem;">
+                <span style="font-weight:500; color:#475569;">Type:</span>
+                <span class="step-badge"
+                  style="background:#<%= meta.color %>-50; color:#<%= meta.color %>-700; border:1px solid #<%= meta.color %>-200;">
+                  <%= meta.icon %>
+                    <%= meta.label %>
+                </span>
+              </div>
+
+              <form action="/admin/flows/steps/<%= step.node_id %>/update?clientId=<%= clientId %>" method="POST"
+                onsubmit="return prepareStepForm(<%= step.node_id %>)">
+                <input type="hidden" name="flow_id" value="<%= activeFlow.flow_id %>">
+
+                <div class="form-group">
+                  <label class="form-label">Step Name</label>
+                  <input type="text" name="step_name" value="<%= step.node_name || '' %>" class="input-box">
+                </div>
+
+                <% if (step.node_type !=='end_conversation' ) { %>
+                  <div class="form-group">
+                    <label class="form-label">Message</label>
+                    <textarea name="message_text" rows="2" class="textarea-box"><%= config.text || '' %></textarea>
+                  </div>
+                  <% } %>
+
+                    <% if (step.node_type==='collect_input' ) { %>
+                      <div class="form-group">
+                        <label class="form-label">Options</label>
+                        <p class="form-hint">Label : Value (one per row)</p>
+                        <div id="options-list-<%= step.node_id %>">
+                          <% if (config.options && config.options.length) { config.options.forEach(opt=> {
+                            const val = String(opt.value || opt.label || '');
+                            const predefined =
+                            ['1BHK','2BHK','3BHK','4BHK','5BHK','STUDIO','READY_TO_MOVE','UNDER_CONSTRUCTION','SELF_USE','INVESTMENT','BUY','RENT'];
+                            const isPre = predefined.includes(val);
+                            %>
+                            <div class="option-row">
+                              <input type="text" placeholder="Label" value="<%= opt.label || '' %>" class="opt-label">
+                              <select class="opt-value-select" onchange="toggleCustomValue(this)">
+                                <option value="">-- ID --</option>
+                                <option value="1BHK" <%=val==='1BHK' ?'selected':'' %>>1BHK</option>
+                                <option value="2BHK" <%=val==='2BHK' ?'selected':'' %>>2BHK</option>
+                                <option value="3BHK" <%=val==='3BHK' ?'selected':'' %>>3BHK</option>
+                                <option value="4BHK" <%=val==='4BHK' ?'selected':'' %>>4BHK</option>
+                                <option value="5BHK" <%=val==='5BHK' ?'selected':'' %>>5BHK</option>
+                                <option value="STUDIO" <%=val==='STUDIO' ?'selected':'' %>>STUDIO</option>
+                                <option value="SELF_USE" <%=val==='SELF_USE' ?'selected':'' %>>SELF_USE</option>
+                                <option value="INVESTMENT" <%=val==='INVESTMENT' ?'selected':'' %>>INVESTMENT</option>
+                                <option value="BUY" <%=val==='BUY' ?'selected':'' %>>BUY</option>
+                                <option value="RENT" <%=val==='RENT' ?'selected':'' %>>RENT</option>
+                                <option value="READY_TO_MOVE" <%=val==='READY_TO_MOVE' ?'selected':'' %>>Ready</option>
+                                <option value="UNDER_CONSTRUCTION" <%=val==='UNDER_CONSTRUCTION' ?'selected':'' %>>Under
+                                </option>
+                                <option value="__custom__" <%=!isPre && val ? 'selected' : '' %>>Custom</option>
+                              </select>
+                              <input type="text" placeholder="Custom" value="<%= !isPre ? val : '' %>"
+                                class="opt-value-custom" style="flex:2; <%= (isPre||!val)?'display:none':'' %>">
+                              <span class="remove-btn" onclick="this.parentElement.remove()">✕</span>
+                            </div>
+                            <% }); } else { %>
+                              <div class="option-row">
+                                <input type="text" placeholder="Label" class="opt-label">
+                                <select class="opt-value-select" onchange="toggleCustomValue(this)">
+                                  <option value="">-- ID --</option>
+                                  <option value="1BHK">1BHK</option>
+                                  <option value="2BHK">2BHK</option>
+                                  <option value="3BHK">3BHK</option>
+                                  <option value="4BHK">4BHK</option>
+                                  <option value="5BHK">5BHK</option>
+                                  <option value="STUDIO">STUDIO</option>
+                                  <option value="SELF_USE">SELF_USE</option>
+                                  <option value="INVESTMENT">INVESTMENT</option>
+                                  <option value="BUY">BUY</option>
+                                  <option value="RENT">RENT</option>
+                                  <option value="READY_TO_MOVE">Ready</option>
+                                  <option value="UNDER_CONSTRUCTION">Under</option>
+                                  <option value="__custom__">Custom</option>
+                                </select>
+                                <input type="text" placeholder="Custom" class="opt-value-custom"
+                                  style="flex:2; display:none;">
+                                <span class="remove-btn" onclick="this.parentElement.remove()">✕</span>
+                              </div>
+                              <% } %>
+                        </div>
+                        <span onclick="addCollectInputOptionRow(<%= step.node_id %>)" class="add-link">+ Add
+                          option</span>
+                      </div>
+
+                      <div class="form-group">
+                        <label class="form-label">Save as</label>
+                        <div class="flex-row">
+                          <select id="save-field-select-<%= step.node_id %>" name="save_field" class="select-box"
+                            onchange="toggleCustomSaveField(<%= step.node_id %>)" style="width:auto;">
+                            <option value="">Don't save</option>
+                            <option value="configuration" <%=config.field==='configuration' ?'selected':'' %>
+                              >configuration</option>
+                            <option value="requirement_type" <%=config.field==='requirement_type' ?'selected':'' %>
+                              >requirement_type</option>
+                            <option value="budget_range" <%=config.field==='budget_range' ?'selected':'' %>>budget_range
+                            </option>
+                            <option value="timeline" <%=config.field==='timeline' ?'selected':'' %>>timeline</option>
+                            <option value="location" <%=config.field==='location' ?'selected':'' %>>location</option>
+                            <option value="possession" <%=config.field==='possession' ?'selected':'' %>>possession
+                            </option>
+                            <option value="__custom__" <%=(config.field &&
+                              !['configuration','requirement_type','budget_range','timeline','location','possession'].includes(config.field))?'selected':''
+                              %>>Custom</option>
+                          </select>
+                          <input type="text" id="save-field-custom-<%= step.node_id %>" name="save_field_custom"
+                            value="<%= (config.field && !['configuration','requirement_type','budget_range','timeline','location','possession'].includes(config.field)) ? config.field : '' %>"
+                            class="input-box"
+                            style="<%= (config.field && !['configuration','requirement_type','budget_range','timeline','location','possession'].includes(config.field)) ? '' : 'display:none' %>"
+                            placeholder="Field name">
+                        </div>
+                      </div>
+                      <% } %>
+
+                        <% if (step.node_type==='property_welcome' ) { %>
+                          <div class="form-group">
+                            <label class="form-label">Buttons</label>
+                            <div id="options-list-<%= step.node_id %>">
+                              <% if (config.buttons && config.buttons.length) { config.buttons.forEach(btn=> { %>
+                                <div class="option-row">
+                                  <input type="text" placeholder="Title" value="<%= btn.title || '' %>"
+                                    class="opt-label">
+                                  <select class="opt-action">
+                                    <% ['BROCHURE','VISIT','CALL','BUY','RENT'].forEach(a=> { %>
+                                      <option value="<%= a %>" <%=btn.id===a?'selected':'' %>><%= a %>
+                                      </option>
+                                      <% }); %>
+                                  </select>
+                                  <span class="remove-btn" onclick="this.parentElement.remove()">✕</span>
+                                </div>
+                                <% }); } else { %>
+                                  <div class="option-row">
+                                    <input type="text" placeholder="Title" class="opt-label">
+                                    <select class="opt-action">
+                                      <% ['BROCHURE','VISIT','CALL','BUY','RENT'].forEach(a=> { %>
+                                        <option value="<%= a %>">
+                                          <%= a %>
+                                        </option>
+                                        <% }); %>
+                                    </select>
+                                    <span class="remove-btn" onclick="this.parentElement.remove()">✕</span>
+                                  </div>
+                                  <% } %>
+                            </div>
+                            <span onclick="addWelcomeButtonRow(<%= step.node_id %>)" class="add-link">+ Add
+                              button</span>
+                          </div>
+                          <% } %>
+
+                            <% if (step.node_type==='show_list' ) { %>
+                              <div class="form-group">
+                                <label class="form-label">Filter</label>
+                                <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.875rem;">
+                                  <input type="radio" name="list-mode" value="all" <%=config.filter_mode!=='filtered'
+                                    ?'checked':'' %>> Show all
+                                </label>
+                                <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.875rem;">
+                                  <input type="radio" name="list-mode" value="filtered"
+                                    <%=config.filter_mode==='filtered' ?'checked':'' %> onchange="toggleMatchBox(<%=
+                                    step.node_id %>)"> Smart Match
+                                </label>
+                                <div id="match-dimensions-<%= step.node_id %>"
+                                  style="margin-left:1.5rem; <%= config.filter_mode!=='filtered'?'display:none':'' %>">
+                                  <% ['budget_range','configuration','possession','location'].forEach(dim=> { %>
+                                    <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.875rem;">
+                                      <input type="checkbox" name="match_dimensions[]" value="<%= dim %>"
+                                        <%=(config.match_dimensions&&config.match_dimensions.includes(dim))?'checked':''
+                                        %>> <%= dim.replace('_',' ') %>
+                      </label>
+                    <% }) %>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">If no match</label>
+                  <select name="fallback_node_id" class="select-box">
+                    <option value="">Say sorry</option>
+                    <% steps.forEach(t => { if (t.node_id !== step.node_id) { %>
+                      <option value="<%= t.node_id %>" <%= config.fallback_node_id==t.node_id?' selected':'' %>><%=
+                                          t.node_name || 'Step #' +t.node_id %>
+                                          </option>
+                                          <% } }) %>
+                                            </select>
+                                </div>
+                                <% } %>
+
+                                  <% if (step.node_type==='send_document' ) { %>
+                                    <div class="form-group">
+                                      <label class="form-label">Document Source</label>
+                                      <select name="source" class="select-box"
+                                        onchange="toggleDocSource(<%= step.node_id %>)" style="width:auto;">
+                                        <option value="auto" <%=config.source!=='static' && config.source!=='property'
+                                          ? 'selected' : '' %>>Auto (static fallback)</option>
+                                        <option value="property" <%=config.source==='property' ? 'selected' : '' %>>From
+                                          Selected Property</option>
+                                        <option value="static" <%=config.source==='static' ? 'selected' : '' %>>Static
+                                          URLs</option>
+                                      </select>
+                                      <p class="form-hint">
+                                        <b>Property:</b> fetches brochure/assets from the property the user
+                                        selected.<br>
+                                        <b>Static:</b> always sends the URLs typed below.<br>
+                                        <b>Auto:</b> uses static if URLs are typed, else tries property.
+                                      </p>
+                                    </div>
+
+                                    <div id="doc-property-opts-<%= step.node_id %>"
+                                      style="<%= config.source==='property' ? '' : 'display:none' %>">
+                                      <div class="form-group">
+                                        <label class="form-label">Asset Type</label>
+                                        <select name="property_asset_type" class="select-box" style="width:auto;">
+                                          <option value="all" <%=config.property_asset_type!=='brochure' &&
+                                            config.property_asset_type!=='image' && config.property_asset_type!=='video'
+                                            ? 'selected' : '' %>>All Assets</option>
+                                          <option value="brochure" <%=config.property_asset_type==='brochure'
+                                            ? 'selected' : '' %>>Brochure Only</option>
+                                          <option value="image" <%=config.property_asset_type==='image' ? 'selected'
+                                            : '' %>>Images Only</option>
+                                          <option value="video" <%=config.property_asset_type==='video' ? 'selected'
+                                            : '' %>>Videos Only</option>
+                                        </select>
+                                      </div>
+                                    </div>
+
+                                    <div id="doc-static-opts-<%= step.node_id %>"
+                                      style="<%= config.source==='static' || (config.source!=='property' && config.media_items?.length) ? '' : 'display:none' %>">
+                                      <div class="form-group">
+                                        <label class="form-label">Static Media</label>
+                                        <div id="media-list-<%= step.node_id %>">
+                                          <% let mediaItems=[]; if (Array.isArray(config.media_items) &&
+                                            config.media_items.length) mediaItems=config.media_items; else if
+                                            (config.document_url_field) mediaItems=[{type:'document',
+                                            url:config.document_url_field, caption:config.caption||'',
+                                            filename:config.filename||'doc.pdf'}]; if (mediaItems.length) {
+                                            mediaItems.forEach(item=> { %>
+                                            <div class="media-row">
+                                              <select class="media-type">
+                                                <option value="image" <%=item.type==='image' ?'selected':'' %>>Image
+                                                </option>
+                                                <option value="video" <%=item.type==='video' ?'selected':'' %>>Video
+                                                </option>
+                                                <option value="document" <%=item.type==='document' ?'selected':'' %>>Doc
+                                                </option>
+                                              </select>
+                                              <input type="url" placeholder="URL" value="<%= item.url||'' %>"
+                                                class="media-url">
+                                              <input type="text" placeholder="Caption" value="<%= item.caption||'' %>"
+                                                class="media-caption">
+                                              <input type="text" placeholder="Filename" value="<%= item.filename||'' %>"
+                                                class="media-filename">
+                                              <span class="remove-btn" onclick="this.parentElement.remove()">✕</span>
+                                            </div>
+                                            <% }); } else { %>
+                                              <div class="media-row">
+                                                <select class="media-type">
+                                                  <option value="image">Image</option>
+                                                  <option value="video">Video</option>
+                                                  <option value="document">Doc</option>
+                                                </select>
+                                                <input type="url" placeholder="URL" class="media-url">
+                                                <input type="text" placeholder="Caption" class="media-caption">
+                                                <input type="text" placeholder="Filename" class="media-filename">
+                                                <span class="remove-btn" onclick="this.parentElement.remove()">✕</span>
+                                              </div>
+                                              <% } %>
+                                        </div>
+                                        <span onclick="addMediaRow(<%= step.node_id %>)" class="add-link">+ Add
+                                          media</span>
+                                      </div>
+                                    </div>
+                                    <% } %>
+
+                                      <% if (step.node_type==='book_appointment' ) { %>
+                                        <div class="form-group">
+                                          <label class="form-label">Slots</label>
+                                          <div style="display:flex; gap:1rem; font-size:0.875rem;">
+                                            <label style="display:flex; align-items:center; gap:0.5rem;">
+                                              <input type="radio" name="slot_source_<%= step.node_id %>"
+                                                value="predefined"
+                                                <%=(config.options&&config.options.length)?'checked':'' %>
+                                              onchange="toggleSlotSource('<%= step.node_id %>')"> Predefined
+                                            </label>
+                                            <label style="display:flex; align-items:center; gap:0.5rem;">
+                                              <input type="radio" name="slot_source_<%= step.node_id %>"
+                                                value="property"
+                                                <%=(!config.options||!config.options.length)?'checked':'' %>
+                                              onchange="toggleSlotSource('<%= step.node_id %>')"> Property slots
+                                            </label>
+                                          </div>
+                                          <div id="predefined-slots-<%= step.node_id %>"
+                                            style="<%= (config.options&&config.options.length)?'':'display:none' %>">
+                                            <div id="options-list-<%= step.node_id %>" style="margin-top:0.5rem;">
+                                              <% if (config.options && config.options.length) {
+                                                config.options.forEach(opt=> { %>
+                                                <div class="option-row">
+                                                  <input type="text" placeholder="Slot"
+                                                    value="<%= opt.label||opt.value||'' %>" class="opt-label">
+                                                  <span class="remove-btn"
+                                                    onclick="this.parentElement.remove()">✕</span>
+                                                </div>
+                                                <% }); } else { %>
+                                                  <div class="option-row">
+                                                    <input type="text" placeholder="Slot" class="opt-label">
+                                                    <span class="remove-btn"
+                                                      onclick="this.parentElement.remove()">✕</span>
+                                                  </div>
+                                                  <% } %>
+                                            </div>
+                                            <span onclick="addSimpleOptionRow(<%= step.node_id %>)" class="add-link">+
+                                              Add slot</span>
+                                          </div>
+                                        </div>
+                                        <% } %>
+
+                                          <button type="submit" class="btn btn-primary"
+                                            style="margin-top:0.5rem;">Save</button>
+              </form>
+
+              <div style="border-top:1px solid #e2e8f0; margin-top:1rem; padding-top:1rem;">
+                <h4 style="font-size:0.875rem; font-weight:600; color:#334155; margin-bottom:0.5rem;">Connections</h4>
+                <% if (step.connections && step.connections.length) { %>
+                  <div style="margin-bottom:0.75rem;">
+                    <% step.connections.forEach(conn=> { %>
+                      <span class="conn-tag">
+                        <% if (conn.userInput) { %>"<%= conn.userInput %>" → <% } %>
+                              <b style="color:#6d28d9;">
+                                <%= conn.toNodeName || 'Step #' +conn.toNodeId %>
+                              </b>
+                              <form action="/admin/flows/connections/<%= conn.edgeId %>/delete?clientId=<%= clientId %>"
+                                method="POST" style="display:inline;">
+                                <button type="submit">✕</button>
+                              </form>
+                      </span>
+                      <% }) %>
+                  </div>
+                  <% } else { %>
+                    <p style="font-size:0.875rem; color:#94a3b8; margin-bottom:0.75rem;">No connections.</p>
+                    <% } %>
+
+                      <details>
+                        <summary style="color:#7c3aed; cursor:pointer; font-size:0.875rem; font-weight:500;">+ Add
+                          Connection</summary>
+                        <form action="/admin/flows/connections?clientId=<%= clientId %>" method="POST"
+                          style="margin-top:0.5rem;">
+                          <input type="hidden" name="from_step" value="<%= step.node_id %>">
+                          <div class="flex-row" style="margin-bottom:0.5rem;">
+                            <select name="to_step" required class="select-box" style="flex:1;">
+                              <option value="">Target step…</option>
+                              <% steps.forEach(t=> { if (t.node_id !== step.node_id) { %>
+                                <option value="<%= t.node_id %>">
+                                  <%= t.node_name || 'Step #' +t.node_id %> (<%= typeMeta[t.node_type]?.label %>)
+                                </option>
+                                <% } }) %>
+                            </select>
+                            <select name="user_choice" class="select-box conn-condition" style="flex:1;">
+                              <option value="">Always</option>
+                            </select>
+                          </div>
+                          <button type="submit" class="btn btn-primary" style="font-size:0.75rem;">Save
+                            Connection</button>
+                        </form>
+                      </details>
+              </div>
+            </div>
+          </div>
+          <% }) %>
+      </div>
+
+      <div style="margin-top:1rem;">
+        <form action="/admin/flows/steps?clientId=<%= clientId %>" method="POST"
+          style="display:flex; align-items:center; gap:0.5rem; background:white; border:2px dashed #cbd5e1; border-radius:0.75rem; padding:1rem;">
+          <input type="hidden" name="clientId" value="<%= clientId %>">
+          <input type="hidden" name="flow_id" value="<%= activeFlow.flow_id %>">
+          <select name="step_type" class="select-box" style="width:auto;">
+            <option value="message">💬 Message</option>
+            <option value="question">❓ Question</option>
+            <option value="property_list">🏠 Property List</option>
+            <option value="property_welcome">🏢 Welcome</option>
+            <option value="brochure">📄 Document</option>
+            <option value="book_visit">📅 Book Visit</option>
+            <option value="callback">📞 Callback</option>
+            <option value="end_conversation">🛑 End</option>
+          </select>
+          <input type="text" name="step_name" placeholder="Step name" class="input-box" style="flex:1;">
+          <button type="submit" class="btn btn-success">+ Add</button>
+        </form>
+      </div>
+      <% } else { %>
+        <div class="empty-state">
+          <div style="font-size:2.5rem;">🏗️</div>
+          <h3 style="font-size:1.25rem; font-weight:600; color:#1e293b; margin-top:0.5rem;">No flow selected</h3>
+          <p style="color:#64748b; font-size:0.875rem;">Select or create a flow.</p>
+        </div>
+        <% } %>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
+  <script>
+    // ---- Toggles ----
+    function toggleNewFlow() {
+      const el = document.getElementById('new-flow-form');
+      el.style.display = el.style.display === 'none' ? 'flex' : 'none';
+    }
+    function toggleEdit(nodeId) {
+      const editor = document.getElementById('editor-' + nodeId);
+      editor.classList.toggle('open');
+      if (editor.classList.contains('open')) populateConditionDropdown(nodeId);
+    }
+    function toggleBlueprint() {
+      const panel = document.getElementById('blueprint-panel');
+      panel.classList.toggle('active');
+      if (panel.classList.contains('active')) requestAnimationFrame(() => renderFlowBlueprint());
+    }
+
+    // ---- Blueprint renderer ----
+    function renderFlowBlueprint() {
+      const canvas = document.getElementById('flow-canvas');
+      const nodeLayer = document.getElementById('flow-nodes');
+      const edgeLayer = document.getElementById('flow-edges');
+      const labelLayer = document.getElementById('flow-labels');
+      const steps = window.__flowSteps || [];
+      const typeMeta = window.__flowMeta || {};
+      if (!steps.length) return;
+
+      const colorMap = {
+        purple: { 50: '#faf5ff', 100: '#f3e8ff', 600: '#9333ea', 700: '#7e22ce' },
+        blue: { 50: '#eff6ff', 100: '#dbeafe', 600: '#2563eb', 700: '#1d4ed8' },
+        green: { 50: '#f0fdf4', 100: '#dcfce7', 600: '#16a34a', 700: '#15803d' },
+        indigo: { 50: '#eef2ff', 100: '#e0e7ff', 600: '#4f46e5', 700: '#4338ca' },
+        orange: { 50: '#fff7ed', 100: '#ffedd5', 600: '#ea580c', 700: '#c2410c' },
+        pink: { 50: '#fdf2f8', 100: '#fce7f3', 600: '#db2777', 700: '#be185d' },
+        teal: { 50: '#f0fdfa', 100: '#ccfbf1', 600: '#0d9488', 700: '#0f766e' },
+        red: { 50: '#fef2f2', 100: '#fee2e2', 600: '#dc2626', 700: '#b91c1c' },
+        gray: { 50: '#f9fafb', 100: '#f3f4f6', 600: '#4b5563', 700: '#374151' },
+        yellow: { 50: '#fefce8', 100: '#fef9c3', 600: '#ca8a04', 700: '#a16207' }
+      };
+
+      nodeLayer.innerHTML = '';
+      edgeLayer.innerHTML = '';
+      labelLayer.innerHTML = '';
+
+      const nodeMap = {};
+      const incoming = {};
+      steps.forEach(s => {
+        nodeMap[s.node_id] = { ...s, x: 0, y: 0, level: 0 };
+        incoming[s.node_id] = [];
+      });
+      steps.forEach(s => {
+        (s.connections || []).forEach(c => {
+          if (nodeMap[c.toNodeId]) incoming[c.toNodeId].push(s.node_id);
+        });
+      });
+
+      // BFS levels
+      let roots = steps.filter(s => incoming[s.node_id].length === 0).map(s => s.node_id);
+      if (!roots.length) roots = [steps[0].node_id];
+      const queue = [...roots];
+      const visited = new Set(roots);
+      roots.forEach(r => nodeMap[r].level = 0);
+      while (queue.length) {
+        const id = queue.shift();
+        const curr = nodeMap[id];
+        (curr.connections || []).forEach(c => {
+          const t = nodeMap[c.toNodeId];
+          if (!t) return;
+          t.level = Math.max(t.level, curr.level + 1);
+          if (!visited.has(t.node_id)) { visited.add(t.node_id); queue.push(t.node_id); }
+        });
+      }
+      steps.forEach(s => { if (!visited.has(s.node_id)) nodeMap[s.node_id].level = 0; });
+
+      const levels = {};
+      Object.values(nodeMap).forEach(n => {
+        if (!levels[n.level]) levels[n.level] = [];
+        levels[n.level].push(n);
+      });
+
+      const NODE_W = 260, NODE_H = 90, GAP_X = 140, GAP_Y = 150, PAD = 80;
+      const maxLevel = Math.max(...Object.keys(levels).map(Number));
+      const totalHeight = PAD * 2 + maxLevel * GAP_Y + NODE_H;
+      let maxLevelWidth = 0;
+      Object.values(levels).forEach(arr => {
+        const w = arr.length * NODE_W + (arr.length - 1) * GAP_X;
+        if (w > maxLevelWidth) maxLevelWidth = w;
+      });
+      const totalWidth = Math.max(canvas.clientWidth || 800, maxLevelWidth + PAD * 2);
+
+      canvas.style.height = totalHeight + 'px';
+      canvas.style.width = totalWidth + 'px';
+      edgeLayer.style.width = totalWidth + 'px';
+      edgeLayer.style.height = totalHeight + 'px';
+
+      Object.keys(levels).forEach(lvl => {
+        const arr = levels[lvl];
+        const lw = arr.length * NODE_W + (arr.length - 1) * GAP_X;
+        let startX = (totalWidth - lw) / 2;
+        arr.forEach((n, i) => { n.x = startX + i * (NODE_W + GAP_X); n.y = PAD + lvl * GAP_Y; });
+      });
+
+      const svgNS = 'http://www.w3.org/2000/svg';
+      const labelsToRender = [];
+
+      // Draw edges
+      Object.values(nodeMap).forEach(n => {
+        (n.connections || []).forEach(conn => {
+          const t = nodeMap[conn.toNodeId];
+          if (!t) return;
+          const x1 = n.x + NODE_W / 2, y1 = n.y + NODE_H;
+          const x2 = t.x + NODE_W / 2, y2 = t.y;
+          const c1y = y1 + GAP_Y * 0.45, c2y = y2 - GAP_Y * 0.45;
+
+          const gradId = 'grad-' + n.node_id + '-' + t.node_id;
+          const grad = document.createElementNS(svgNS, 'linearGradient');
+          grad.setAttribute('id', gradId);
+          grad.setAttribute('x1', '0%'); grad.setAttribute('y1', '0%');
+          grad.setAttribute('x2', '0%'); grad.setAttribute('y2', '100%');
+          const s1 = document.createElementNS(svgNS, 'stop');
+          s1.setAttribute('offset', '0%'); s1.setAttribute('stop-color', '#cbd5e1');
+          const s2 = document.createElementNS(svgNS, 'stop');
+          s2.setAttribute('offset', '100%'); s2.setAttribute('stop-color', '#94a3b8');
+          grad.appendChild(s1); grad.appendChild(s2);
+          edgeLayer.appendChild(grad);
+
+          const path = document.createElementNS(svgNS, 'path');
+          path.setAttribute('d', `M ${x1} ${y1} C ${x1} ${c1y}, ${x2} ${c2y}, ${x2} ${y2}`);
+          path.setAttribute('fill', 'none');
+          path.setAttribute('stroke', `url(#${gradId})`);
+          path.setAttribute('stroke-width', '2.5');
+          path.setAttribute('stroke-linecap', 'round');
+          path.setAttribute('stroke-dasharray', '8 6');
+
+          const anim = document.createElementNS(svgNS, 'animate');
+          anim.setAttribute('attributeName', 'stroke-dashoffset');
+          anim.setAttribute('from', '14'); anim.setAttribute('to', '0');
+          anim.setAttribute('dur', '1.2s'); anim.setAttribute('repeatCount', 'indefinite');
+          path.appendChild(anim);
+          edgeLayer.appendChild(path);
+
+          const arrow = document.createElementNS(svgNS, 'polygon');
+          arrow.setAttribute('points', `${x2 - 5},${y2 - 6} ${x2 + 5},${y2 - 6} ${x2},${y2}`);
+          arrow.setAttribute('fill', '#94a3b8');
+          edgeLayer.appendChild(arrow);
+
+          if (conn.userInput) {
+            const midX = 0.5 * (x1 + x2);
+            const midY = 0.125 * y1 + 0.375 * c1y + 0.375 * c2y + 0.125 * y2;
+            labelsToRender.push({ x: midX, y: midY, text: String(conn.userInput) });
+          }
+        });
+      });
+
+      // Draw nodes
+      Object.values(nodeMap).forEach((n, idx) => {
+        const meta = typeMeta[n.node_type] || typeMeta.send_message;
+        const c = colorMap[meta.color] || colorMap.blue;
+        const wrap = document.createElement('div');
+        wrap.style.cssText = `position:absolute; left:${n.x}px; top:${n.y}px; width:${NODE_W}px; height:${NODE_H}px;`;
+        wrap.innerHTML = `
+        <div class="bp-node" style="width:100%; height:100%; background:white; border-radius:16px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05), 0 12px 24px -4px rgba(0,0,0,0.04); border:1px solid ${c[100]}; display:flex; align-items:center; gap:12px; padding:0 16px; cursor:default; transition:all 0.3s; position:relative; overflow:hidden; opacity:0; transform:translateY(12px);">
+          <div style="position:absolute; left:0; top:0; bottom:0; width:4px; background:linear-gradient(180deg, ${c[600]}, ${c[700]});"></div>
+          <div style="width:40px; height:40px; border-radius:10px; background:${c[50]}; color:${c[600]}; display:flex; align-items:center; justify-content:center; font-size:1.2rem; border:1px solid ${c[100]}; flex-shrink:0;">${meta.icon}</div>
+          <div style="min-width:0; flex:1;">
+            <div style="font-weight:700; font-size:0.9rem; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${n.node_name || 'Untitled'}</div>
+            <div style="font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:${c[700]}; margin-top:3px;">${meta.label}</div>
+          </div>
+        </div>`;
+        const card = wrap.querySelector('.bp-node');
+        setTimeout(() => { card.style.opacity = '1'; card.style.transform = 'translateY(0)'; }, idx * 60);
+        card.addEventListener('mouseenter', () => {
+          card.style.transform = 'translateY(-4px) scale(1.02)';
+          card.style.boxShadow = `0 20px 32px -8px rgba(0,0,0,0.12), 0 0 0 3px ${c[50]}`;
+          card.style.borderColor = c[600];
+        });
+        card.addEventListener('mouseleave', () => {
+          card.style.transform = 'translateY(0) scale(1)';
+          card.style.boxShadow = '0 4px 6px -1px rgba(0,0,0,0.05), 0 12px 24px -4px rgba(0,0,0,0.04)';
+          card.style.borderColor = c[100];
+        });
+        nodeLayer.appendChild(wrap);
+      });
+
+      // Draw labels on top
+      labelsToRender.forEach(lbl => {
+        const pill = document.createElement('div');
+        pill.style.cssText = `position:absolute; left:${lbl.x}px; top:${lbl.y}px; transform:translate(-50%,-50%); background:#fff; border:1px solid #e2e8f0; border-radius:9999px; padding:2px 10px; font-size:11px; font-weight:600; color:#475569; box-shadow:0 2px 6px rgba(0,0,0,0.06); white-space:nowrap; z-index:2; pointer-events:none;`;
+        pill.textContent = lbl.text;
+        labelLayer.appendChild(pill);
+      });
+    }
+
+    // ---- Option helpers ----
+    function addSimpleOptionRow(nodeId) {
+      const list = document.getElementById('options-list-' + nodeId);
+      const row = document.createElement('div');
+      row.className = 'option-row';
+      row.innerHTML = '<input type="text" placeholder="Option" class="opt-label"><span class="remove-btn" onclick="this.parentElement.remove()">✕</span>';
+      list.appendChild(row);
+    }
+    function addWelcomeButtonRow(nodeId) {
+      const list = document.getElementById('options-list-' + nodeId);
+      const row = document.createElement('div');
+      row.className = 'option-row';
+      row.innerHTML = '<input type="text" placeholder="Title" class="opt-label" style="flex:2;"><select class="opt-action" style="flex:1;"><option value="BROCHURE">BROCHURE</option><option value="VISIT">VISIT</option><option value="CALL">CALL</option><option value="BUY">BUY</option><option value="RENT">RENT</option></select><span class="remove-btn" onclick="this.parentElement.remove()">✕</span>';
+      list.appendChild(row);
+    }
+    function addCollectInputOptionRow(nodeId) {
+      const list = document.getElementById('options-list-' + nodeId);
+      const row = document.createElement('div');
+      row.className = 'option-row';
+      row.innerHTML = '<input type="text" placeholder="Label" class="opt-label" style="flex:2;"><select class="opt-value-select" style="flex:2;" onchange="toggleCustomValue(this)"><option value="">-- ID --</option><option value="1BHK">1BHK</option><option value="2BHK">2BHK</option><option value="3BHK">3BHK</option><option value="4BHK">4BHK</option><option value="5BHK">5BHK</option><option value="STUDIO">STUDIO</option><option value="SELF_USE">SELF_USE</option><option value="INVESTMENT">INVESTMENT</option><option value="BUY">BUY</option><option value="RENT">RENT</option><option value="READY_TO_MOVE">Ready</option><option value="UNDER_CONSTRUCTION">Under</option><option value="__custom__">Custom</option></select><input type="text" placeholder="Custom" class="opt-value-custom" style="flex:2; display:none;"><span class="remove-btn" onclick="this.parentElement.remove()">✕</span>';
+      list.appendChild(row);
+    }
+    function toggleCustomValue(select) {
+      const row = select.parentElement;
+      const custom = row.querySelector('.opt-value-custom');
+      if (select.value === '__custom__') { custom.style.display = ''; custom.focus(); }
+      else { custom.style.display = 'none'; custom.value = ''; }
+    }
+    function toggleCustomSaveField(nodeId) {
+      const select = document.getElementById('save-field-select-' + nodeId);
+      const custom = document.getElementById('save-field-custom-' + nodeId);
+      if (!select || !custom) return;
+      if (select.value === '__custom__') { custom.style.display = ''; custom.focus(); }
+      else { custom.style.display = 'none'; custom.value = ''; }
+    }
+    function addMediaRow(nodeId) {
+      const list = document.getElementById('media-list-' + nodeId);
+      const row = document.createElement('div');
+      row.className = 'media-row';
+      row.innerHTML = '<select class="media-type"><option value="image">Image</option><option value="video">Video</option><option value="document">Doc</option></select><input type="url" placeholder="URL" class="media-url"><input type="text" placeholder="Caption" class="media-caption"><input type="text" placeholder="Filename" class="media-filename"><span class="remove-btn" onclick="this.parentElement.remove()">✕</span>';
+      list.appendChild(row);
+    }
+
+    // ---- Form preparation ----
+    function prepareStepForm(nodeId) {
+      const form = document.querySelector(`#editor-${nodeId} form`);
+      if (!form) return true;
+
+      const saveSelect = document.getElementById('save-field-select-' + nodeId);
+      const saveCustom = document.getElementById('save-field-custom-' + nodeId);
+      if (saveSelect && saveCustom && saveSelect.value === '__custom__') {
+        saveSelect.value = saveCustom.value.trim();
+      }
+
+      const optionsList = document.getElementById('options-list-' + nodeId);
+      if (optionsList) {
+        const stepRow = document.querySelector(`.step-card[data-node-id="${nodeId}"]`);
+        const stepType = stepRow ? stepRow.dataset.stepType : '';
+        const rows = optionsList.querySelectorAll('.option-row');
+        let lines = [];
+        rows.forEach(row => {
+          if (stepType === 'collect_input') {
+            const labelInput = row.querySelector('.opt-label');
+            const selectEl = row.querySelector('.opt-value-select');
+            const customInput = row.querySelector('.opt-value-custom');
+            let value = selectEl.value === '__custom__' ? customInput.value.trim() : selectEl.value;
+            if (labelInput && labelInput.value.trim()) {
+              lines.push(labelInput.value.trim() + ' : ' + (value || labelInput.value.trim()));
+            }
+          } else if (stepType === 'property_welcome') {
+            const labelInput = row.querySelector('.opt-label');
+            const actionSelect = row.querySelector('.opt-action');
+            if (labelInput && labelInput.value.trim()) {
+              lines.push(labelInput.value.trim() + ' : ' + (actionSelect ? actionSelect.value : 'BROCHURE'));
+            }
+          } else {
+            const labelInput = row.querySelector('.opt-label');
+            if (labelInput && labelInput.value.trim()) lines.push(labelInput.value.trim());
+          }
+        });
+
+        let hiddenOpt = form.querySelector('input[name="options"]');
+        if (!hiddenOpt) {
+          hiddenOpt = document.createElement('input');
+          hiddenOpt.type = 'hidden'; hiddenOpt.name = 'options';
+          form.appendChild(hiddenOpt);
+        }
+        hiddenOpt.value = lines.join('\n');
+      }
+
+      const mediaList = document.getElementById('media-list-' + nodeId);
+      if (mediaList) {
+        const rows = mediaList.querySelectorAll('.media-row');
+        const items = [];
+        rows.forEach(row => {
+          const type = row.querySelector('.media-type').value;
+          const url = row.querySelector('.media-url').value.trim();
+          if (!url) return;
+          const caption = row.querySelector('.media-caption').value.trim();
+          const filename = row.querySelector('.media-filename').value.trim();
+          items.push({ type, url, caption, filename: filename || 'document' });
+        });
+        let hiddenMedia = form.querySelector('input[name="media_items_json"]');
+        if (!hiddenMedia) {
+          hiddenMedia = document.createElement('input');
+          hiddenMedia.type = 'hidden'; hiddenMedia.name = 'media_items_json';
+          form.appendChild(hiddenMedia);
+        }
+        hiddenMedia.value = JSON.stringify(items);
+      }
+      return true;
+    }
+
+    // ---- Condition dropdown ----
+    function populateConditionDropdown(nodeId) {
+      const stepRow = document.querySelector(`.step-card[data-node-id="${nodeId}"]`);
+      if (!stepRow) return;
+      const stepType = stepRow.dataset.stepType;
+      const selectEl = stepRow.querySelector('.conn-condition');
+      if (!selectEl) return;
+
+      while (selectEl.options.length > 1) selectEl.remove(1);
+
+      if (stepType === 'collect_input') {
+        const optionsList = document.getElementById('options-list-' + nodeId);
+        if (optionsList) {
+          optionsList.querySelectorAll('.option-row').forEach(row => {
+            const selectOpt = row.querySelector('.opt-value-select');
+            const customInput = row.querySelector('.opt-value-custom');
+            let value = selectOpt.value === '__custom__' ? customInput.value.trim() : selectOpt.value;
+            if (value) {
+              const option = document.createElement('option');
+              option.value = value; option.textContent = value;
+              selectEl.appendChild(option);
+            }
+          });
+        }
+      } else if (stepType === 'property_welcome') {
+        ['BROCHURE', 'VISIT', 'CALL', 'BUY', 'RENT'].forEach(id => {
+          const option = document.createElement('option');
+          option.value = id; option.textContent = id;
+          selectEl.appendChild(option);
+        });
+      }
+    }
+
+    function toggleMatchBox(nodeId) {
+      const box = document.getElementById('match-dimensions-' + nodeId);
+      const radio = document.querySelector(`#editor-${nodeId} input[name="list-mode"][value="filtered"]`);
+      if (box) box.style.display = radio && radio.checked ? '' : 'none';
+    }
+    function toggleSlotSource(nodeId) {
+      const radio = document.querySelector(`input[name="slot_source_${nodeId}"]:checked`);
+      const predefinedDiv = document.getElementById('predefined-slots-' + nodeId);
+      if (!radio || !predefinedDiv) return;
+      predefinedDiv.style.display = radio.value === 'predefined' ? '' : 'none';
+      if (radio.value !== 'predefined') {
+        const form = document.querySelector(`#editor-${nodeId} form`);
+        if (form) {
+          let hiddenOpt = form.querySelector('input[name="options"]');
+          if (!hiddenOpt) { hiddenOpt = document.createElement('input'); hiddenOpt.type = 'hidden'; hiddenOpt.name = 'options'; form.appendChild(hiddenOpt); }
+          hiddenOpt.value = '';
+        }
+      }
+    }
+
+    // ---- Sortable ----
+    document.addEventListener('DOMContentLoaded', function () {
+      const el = document.getElementById('sortable-steps');
+      if (!el) return;
+      new Sortable(el, {
+        handle: '.step-drag',
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        onEnd: async function () {
+          const nodeIds = Array.from(el.querySelectorAll('.step-card')).map(c => c.dataset.nodeId);
+          await fetch('/admin/flows/reorder?clientId=' + clientId, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ flowId: window.__activeFlow ? window.__activeFlow.flow_id : null, nodeIds })
+          });
+          window.location.reload();
+        }
+      });
+    });
+
+    function toggleDocSource(nodeId) {
+      const select = document.querySelector(`#editor-${nodeId} select[name="source"]`);
+      const propDiv = document.getElementById('doc-property-opts-' + nodeId);
+      const staticDiv = document.getElementById('doc-static-opts-' + nodeId);
+      if (!select || !propDiv || !staticDiv) return;
+
+      if (select.value === 'property') {
+        propDiv.style.display = '';
+        staticDiv.style.display = 'none';
+      } else if (select.value === 'static') {
+        propDiv.style.display = 'none';
+        staticDiv.style.display = '';
+      } else {
+        // auto: show both so admin knows what will be used
+        propDiv.style.display = '';
+        staticDiv.style.display = '';
+      }
+    }
+  </script>

@@ -1,0 +1,276 @@
+<div id="node-editor-modal" class="fixed inset-0 bg-black/50 flex items-start justify-center z-50 pt-10 hidden">
+  <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-lg font-bold text-slate-800" id="modal-title">Edit Node</h3>
+      <button onclick="closeNodeEditor()" class="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+    </div>
+
+    <form id="node-editor-form" method="POST" action="">
+      <input type="hidden" name="flow_id" id="modal-flow-id">
+
+      <!-- Node Name -->
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-slate-700 mb-1">Node Name</label>
+        <input type="text" name="step_name" id="modal-step-name" required class="w-full px-3 py-2 border border-slate-300 rounded-lg">
+      </div>
+
+      <!-- Message Text (visible for most types) -->
+      <div id="modal-text-group" class="mb-4">
+        <label class="block text-sm font-medium text-slate-700 mb-1">Message Text</label>
+        <textarea name="message_text" id="modal-text" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg"></textarea>
+      </div>
+
+      <!-- Options (for collect_input / property_welcome / book_appointment) -->
+      <div id="modal-options-group" class="mb-4 hidden">
+        <label class="block text-sm font-medium text-slate-700 mb-1" id="modal-options-label">Options</label>
+        <p class="text-xs text-slate-400 mb-2" id="modal-options-hint"></p>
+
+        <!-- Standard textarea for collect_input / book_appointment -->
+        <div id="modal-options-textarea" class="hidden">
+          <textarea name="options" id="modal-options" rows="4" class="w-full px-3 py-2 border border-slate-300 rounded-lg"></textarea>
+        </div>
+
+        <!-- Button builder for property_welcome -->
+        <div id="modal-buttons-builder" class="hidden">
+          <div id="buttons-container" class="space-y-3"></div>
+          <button type="button" onclick="addButtonRow()" class="mt-2 text-sm text-blue-600 hover:underline">+ Add Button</button>
+          <p class="text-xs text-slate-500 mt-2">💡 Each button must have an action from the dropdown. The system uses these IDs to route the conversation reliably.</p>
+        </div>
+      </div>
+
+      <!-- Save Field (for collect_input) -->
+      <div id="modal-field-group" class="mb-4 hidden">
+        <label class="block text-sm font-medium text-slate-700 mb-1">Save to field</label>
+        <input type="text" name="save_field" id="modal-field" class="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="e.g., configuration">
+      </div>
+
+      <!-- List mode / dimensions (for show_list) -->
+      <div id="modal-list-group" class="mb-4 hidden">
+        <label class="block text-sm font-medium text-slate-700 mb-1">List Mode</label>
+        <select name="list-mode" id="modal-list-mode" class="w-full px-3 py-2 border border-slate-300 rounded-lg mb-2">
+          <option value="all">Show all properties</option>
+          <option value="smart">Smart filter based on answers</option>
+        </select>
+        <div id="modal-match-dimensions" class="hidden">
+          <label class="block text-sm font-medium text-slate-700 mb-1">Match Dimensions</label>
+          <div class="flex flex-wrap gap-2">
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" name="match_dimensions[]" value="budget_range"> Budget</label>
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" name="match_dimensions[]" value="configuration"> Configuration</label>
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" name="match_dimensions[]" value="possession"> Possession</label>
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" name="match_dimensions[]" value="location"> Location</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Document URL (for send_document) -->
+      <div id="modal-document-group" class="mb-4 hidden">
+        <label class="block text-sm font-medium text-slate-700 mb-1">Document URL (or leave empty to send property assets)</label>
+        <input type="url" name="document_url" id="modal-document-url" class="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="https://...">
+      </div>
+
+      <!-- Submit -->
+      <div class="flex justify-end gap-3 pt-4">
+        <button type="button" onclick="closeNodeEditor()" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+// Predefined canonical actions with descriptions
+const KNOWN_ACTIONS = [
+  { id: 'BROCHURE', desc: 'Send brochure / documents' },
+  { id: 'VISIT',    desc: 'Book a site visit' },
+  { id: 'CALL',     desc: 'Request a callback' },
+  { id: 'BUY',      desc: 'Express buying interest' },
+  { id: 'RENT',     desc: 'Express renting interest' }
+];
+
+let buttonRowCount = 0;
+
+// Add a new button row to the builder
+function addButtonRow(label = '', action = '') {
+  buttonRowCount++;
+  const container = document.getElementById('buttons-container');
+  const row = document.createElement('div');
+  row.className = 'flex items-start gap-2';
+  row.id = `btn-row-${buttonRowCount}`;
+
+  // Build action dropdown options
+  const actionOptions = KNOWN_ACTIONS.map(a => 
+    `<option value="${a.id}" ${a.id === action ? 'selected' : ''}>${a.id} – ${a.desc}</option>`
+  ).join('');
+
+  row.innerHTML = `
+    <input type="text" name="button_label[]" value="${escapeHtml(label)}" placeholder="Button label" class="flex-1 px-2 py-1 border border-slate-300 rounded text-sm">
+    <select name="button_action[]" class="w-48 px-2 py-1 border border-slate-300 rounded text-sm" onchange="showActionDesc(this, ${buttonRowCount})">
+      <option value="">-- Select Action --</option>
+      ${actionOptions}
+    </select>
+    <button type="button" onclick="document.getElementById('btn-row-${buttonRowCount}').remove()" class="text-red-500 hover:text-red-700">✕</button>
+  `;
+  container.appendChild(row);
+
+  // If an action is already selected, show its description below
+  if (action) {
+    const select = row.querySelector('select');
+    showActionDesc(select, buttonRowCount);
+  }
+}
+
+// Show the action description below the dropdown
+function showActionDesc(select, rowId) {
+  // Remove any previous description for this row
+  const existing = document.getElementById(`action-desc-${rowId}`);
+  if (existing) existing.remove();
+
+  const value = select.value;
+  if (!value) return;
+  const action = KNOWN_ACTIONS.find(a => a.id === value);
+  if (action) {
+    const desc = document.createElement('p');
+    desc.id = `action-desc-${rowId}`;
+    desc.className = 'text-xs text-slate-500 mt-1 ml-2';
+    desc.textContent = `✅ ${action.desc}`;
+    select.parentElement.appendChild(desc);
+  }
+}
+
+// Escape HTML to prevent XSS
+function escapeHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Close the modal
+function closeNodeEditor() {
+  document.getElementById('node-editor-modal').classList.add('hidden');
+  document.getElementById('node-editor-form').action = '';
+}
+
+// Open the modal and populate fields based on node type and existing config
+function openNodeEditor(node, flowId) {
+  const modal = document.getElementById('node-editor-modal');
+  const form = document.getElementById('node-editor-form');
+  const title = document.getElementById('modal-title');
+  const nameField = document.getElementById('modal-step-name');
+  const textGroup = document.getElementById('modal-text-group');
+  const textField = document.getElementById('modal-text');
+  const optionsGroup = document.getElementById('modal-options-group');
+  const optionsLabel = document.getElementById('modal-options-label');
+  const optionsHint = document.getElementById('modal-options-hint');
+  const optionsTextareaDiv = document.getElementById('modal-options-textarea');
+  const buttonsBuilderDiv = document.getElementById('modal-buttons-builder');
+  const optionsField = document.getElementById('modal-options');
+  const fieldGroup = document.getElementById('modal-field-group');
+  const fieldInput = document.getElementById('modal-field');
+  const listGroup = document.getElementById('modal-list-group');
+  const listMode = document.getElementById('modal-list-mode');
+  const matchDimensionsDiv = document.getElementById('modal-match-dimensions');
+  const docGroup = document.getElementById('modal-document-group');
+  const docUrl = document.getElementById('modal-document-url');
+  const flowIdField = document.getElementById('modal-flow-id');
+
+  // Reset everything to defaults
+  textGroup.classList.remove('hidden');
+  optionsGroup.classList.add('hidden');
+  optionsTextareaDiv.classList.add('hidden');
+  buttonsBuilderDiv.classList.add('hidden');
+  fieldGroup.classList.add('hidden');
+  listGroup.classList.add('hidden');
+  docGroup.classList.add('hidden');
+  matchDimensionsDiv.classList.add('hidden');
+  document.getElementById('buttons-container').innerHTML = '';
+  buttonRowCount = 0;
+
+  // Set common values
+  flowIdField.value = flowId;
+  title.textContent = node ? 'Edit Node' : 'Add Node';
+  nameField.value = node ? node.node_name : '';
+  textField.value = node?.config?.text || '';
+
+  if (node) {
+    // Set form action for update
+    form.action = `/admin/flows/steps/${node.node_id}/update`;
+
+    // Show/hide sections based on node type
+    switch (node.node_type) {
+      case 'collect_input':
+        optionsGroup.classList.remove('hidden');
+        optionsTextareaDiv.classList.remove('hidden');
+        optionsLabel.textContent = 'Options';
+        optionsHint.textContent = 'One per line. Format: Label : Value (or just Label)';
+        if (node.config?.options) {
+          optionsField.value = node.config.options.map(o => o.label && o.value ? `${o.label} : ${o.value}` : (o.label || o.value || '')).join('\n');
+        }
+        fieldGroup.classList.remove('hidden');
+        fieldInput.value = node.config?.field || '';
+        break;
+
+      case 'property_welcome':
+        optionsGroup.classList.remove('hidden');
+        buttonsBuilderDiv.classList.remove('hidden');
+        optionsLabel.textContent = 'Buttons';
+        optionsHint.textContent = 'Each button must have an action from the dropdown.';
+        // Load existing buttons
+        const buttons = node.config?.buttons || [];
+        if (buttons.length > 0) {
+          buttons.forEach(b => addButtonRow(b.title, b.id));
+        } else {
+          addButtonRow();
+        }
+        break;
+
+      case 'book_appointment':
+        optionsGroup.classList.remove('hidden');
+        optionsTextareaDiv.classList.remove('hidden');
+        optionsLabel.textContent = 'Visit Slots';
+        optionsHint.textContent = 'One slot per line.';
+        if (node.config?.options) {
+          optionsField.value = node.config.options.map(o => o.label || '').join('\n');
+        }
+        break;
+
+      case 'show_list':
+        listGroup.classList.remove('hidden');
+        if (node.config?.filter_mode === 'smart') {
+          listMode.value = 'smart';
+          matchDimensionsDiv.classList.remove('hidden');
+          const dims = node.config.match_dimensions || [];
+          document.querySelectorAll('#modal-match-dimensions input[type="checkbox"]').forEach(cb => {
+            cb.checked = dims.includes(cb.value);
+          });
+        } else {
+          listMode.value = 'all';
+        }
+        break;
+
+      case 'send_document':
+        docGroup.classList.remove('hidden');
+        docUrl.value = node.config?.document_url_field || '';
+        break;
+
+      default:
+        // send_message, end_conversation, etc. – just show text
+        break;
+    }
+  } else {
+    // New node
+    form.action = `/admin/flows/steps`;
+    optionsGroup.classList.remove('hidden');
+    optionsTextareaDiv.classList.remove('hidden');
+    optionsLabel.textContent = 'Options';
+    optionsHint.textContent = 'One per line. Format: Label : Value';
+    fieldGroup.classList.remove('hidden');
+  }
+
+  // Show list mode toggle
+  if (listGroup.classList.contains('hidden') === false) {
+    listMode.onchange = function() {
+      matchDimensionsDiv.classList.toggle('hidden', this.value !== 'smart');
+    };
+  }
+
+  modal.classList.remove('hidden');
+}
+</script>

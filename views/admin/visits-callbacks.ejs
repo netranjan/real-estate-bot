@@ -1,0 +1,199 @@
+<div class="space-y-8">
+  
+  <!-- Site Visits Section -->
+  <div>
+    <h3 class="font-bold text-slate-800 text-lg mb-4 flex items-center gap-2">
+      <span>📅</span> Site Visits
+    </h3>
+    
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 border-b">
+            <tr>
+              <th class="text-left px-6 py-3 font-semibold text-slate-600">Lead</th>
+              <th class="text-left px-6 py-3 font-semibold text-slate-600">Property</th>
+              <th class="text-left px-6 py-3 font-semibold text-slate-600">Visit Slot</th>
+              <th class="text-left px-6 py-3 font-semibold text-slate-600">Status</th>
+              <th class="text-left px-6 py-3 font-semibold text-slate-600">Gate Pass</th>
+              <th class="text-left px-6 py-3 font-semibold text-slate-600">Outcome</th>
+              <th class="text-left px-6 py-3 font-semibold text-slate-600">Notes</th>
+              <th class="text-left px-6 py-3 font-semibold text-slate-600">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% visits.forEach(visit => { %>
+              <tr class="border-b hover:bg-slate-50 transition">
+                <td class="px-6 py-4">
+                  <p class="font-medium text-slate-800 text-xs"><%= visit.lead_name || 'Unknown' %></p>
+                  <p class="text-xs text-slate-500 font-mono"><%= visit.whatsapp_number %></p>
+                </td>
+                <td class="px-6 py-4 text-slate-700"><%= visit.project_location || '-' %></td>
+                <td class="px-6 py-4 text-slate-700"><%= visit.visit_date_slot || '-' %></td>
+                <td class="px-6 py-4">
+                  <span class="px-2 py-1 rounded text-xs font-semibold
+                    <%= visit.booking_status === 'BOOKED' ? 'bg-blue-100 text-blue-700' :
+                       visit.booking_status === 'CONFIRMED' ? 'bg-purple-100 text-purple-700' :
+                       visit.booking_status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
+                       'bg-red-100 text-red-700' %>">
+                    <%= visit.booking_status %>
+                  </span>
+                </td>
+                <td class="px-6 py-4">
+                  <span class="px-2 py-1 rounded text-xs
+                    <%= visit.e_gate_pass_status === 'ISSUED' ? 'bg-green-100 text-green-700' :
+                       visit.e_gate_pass_status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
+                       'bg-slate-100 text-slate-600' %>">
+                    <%= visit.e_gate_pass_status %>
+                  </span>
+                </td>
+                <td class="px-6 py-4 text-slate-600 text-xs"><%= visit.visit_outcome || '-' %></td>
+                <td class="px-6 py-4 text-slate-600 text-xs max-w-xs truncate"><%= visit.agent_notes || '-' %></td>
+                <td class="px-6 py-4">
+                  <button onclick="toggleVisitEdit(<%= visit.site_visit_id %>)" class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1.5 rounded-lg font-medium">Update</button>
+                </td>
+              </tr>
+              
+              <!-- Inline Edit Row -->
+              <tr id="visit-edit-<%= visit.site_visit_id %>" class="hidden bg-blue-50">
+                <td colspan="8" class="px-6 py-4">
+                  <form action="/admin/visits/<%= visit.site_visit_id %>/update?key=<%= req.query.key || '' %>&clientId=<%= clientId %>" method="POST" class="flex flex-wrap gap-3 items-end">
+                    <input type="hidden" name="key" value="<%= req.query.key || '' %>">
+                    <input type="hidden" name="clientId" value="<%= clientId %>">
+                    
+                    <div>
+                      <label class="block text-xs text-slate-500 mb-1">Status</label>
+                      <select name="status" class="px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                        <option value="BOOKED" <%= visit.booking_status === 'BOOKED' ? 'selected' : '' %>>BOOKED</option>
+                        <option value="CONFIRMED" <%= visit.booking_status === 'CONFIRMED' ? 'selected' : '' %>>CONFIRMED</option>
+                        <option value="COMPLETED" <%= visit.booking_status === 'COMPLETED' ? 'selected' : '' %>>COMPLETED</option>
+                        <option value="NO_SHOW" <%= visit.booking_status === 'NO_SHOW' ? 'selected' : '' %>>NO SHOW</option>
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label class="block text-xs text-slate-500 mb-1">Gate Pass</label>
+                      <select name="gate_pass_status" class="px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                        <option value="PENDING" <%= visit.e_gate_pass_status === 'PENDING' ? 'selected' : '' %>>PENDING</option>
+                        <option value="ISSUED" <%= visit.e_gate_pass_status === 'ISSUED' ? 'selected' : '' %>>ISSUED</option>
+                        <option value="RESCHEDULED" <%= visit.e_gate_pass_status === 'RESCHEDULED' ? 'selected' : '' %>>RESCHEDULED</option>
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label class="block text-xs text-slate-500 mb-1">Outcome</label>
+                      <select name="visit_outcome" class="px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                        <option value="">-</option>
+                        <option value="Upcoming" <%= visit.visit_outcome === 'Upcoming' ? 'selected' : '' %>>Upcoming</option>
+                        <option value="Completed" <%= visit.visit_outcome === 'Completed' ? 'selected' : '' %>>Completed</option>
+                        <option value="Rescheduled" <%= visit.visit_outcome === 'Rescheduled' ? 'selected' : '' %>>Rescheduled</option>
+                        <option value="No-Show" <%= visit.visit_outcome === 'No-Show' ? 'selected' : '' %>>No-Show</option>
+                        <option value="Deal Closed" <%= visit.visit_outcome === 'Deal Closed' ? 'selected' : '' %>>Deal Closed</option>
+                      </select>
+                    </div>
+                    
+                    <div class="flex-1 min-w-[200px]">
+                      <label class="block text-xs text-slate-500 mb-1">Agent Notes</label>
+                      <input type="text" name="agent_notes" value="<%= visit.agent_notes || '' %>" placeholder="Client visited with spouse. Liked 3 BHK..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                    </div>
+                    
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-medium">Save</button>
+                    <button type="button" onclick="toggleVisitEdit(<%= visit.site_visit_id %>)" class="text-xs text-slate-500 hover:text-slate-700 px-2">Cancel</button>
+                  </form>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <% if (visits.length === 0) { %>
+        <div class="text-center py-12">
+          <div class="text-3xl mb-2">📅</div>
+          <p class="text-slate-500 text-sm">No site visits booked yet</p>
+        </div>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- Callbacks Section -->
+  <div>
+    <h3 class="font-bold text-slate-800 text-lg mb-4 flex items-center gap-2">
+      <span>📞</span> Callback Requests
+    </h3>
+    
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 border-b">
+            <tr>
+              <th class="text-left px-6 py-3 font-semibold text-slate-600">Lead</th>
+              <th class="text-left px-6 py-3 font-semibold text-slate-600">Phone</th>
+              <th class="text-left px-6 py-3 font-semibold text-slate-600">Assigned Agent</th>
+              <th class="text-left px-6 py-3 font-semibold text-slate-600">Requested At</th>
+              <th class="text-left px-6 py-3 font-semibold text-slate-600">SLA</th>
+              <th class="text-left px-6 py-3 font-semibold text-slate-600">Status</th>
+              <th class="text-left px-6 py-3 font-semibold text-slate-600">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% callbacks.forEach(cb => { %>
+              <tr class="border-b hover:bg-slate-50 transition">
+                <td class="px-6 py-4">
+                  <p class="font-medium text-slate-800 text-xs"><%= cb.lead_name || 'Unknown' %></p>
+                  <p class="text-xs text-slate-500 font-mono"><%= cb.callback_display_id %></p>
+                </td>
+                <td class="px-6 py-4 text-slate-600 font-mono text-xs"><%= cb.whatsapp_number %></td>
+                <td class="px-6 py-4 text-slate-700"><%= cb.assigned_agent || 'Not assigned' %></td>
+                <td class="px-6 py-4 text-slate-600 text-xs">
+                  <%= new Date(cb.created_at).toLocaleString('en-IN', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}) %>
+                </td>
+                <td class="px-6 py-4">
+                  <span class="px-2 py-1 rounded text-xs font-semibold
+                    <%= cb.sla_status === 'OVERDUE' ? 'bg-red-100 text-red-700' :
+                       cb.sla_status === 'WITHIN SLA' ? 'bg-amber-100 text-amber-700' :
+                       'bg-green-100 text-green-700' %>">
+                    <%= cb.sla_status %>
+                  </span>
+                </td>
+                <td class="px-6 py-4">
+                  <span class="px-2 py-1 rounded text-xs font-semibold
+                    <%= cb.status === 'PENDING' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700' %>">
+                    <%= cb.status %>
+                  </span>
+                </td>
+                <td class="px-6 py-4">
+                  <% if (cb.status === 'PENDING') { %>
+                    <form action="/admin/callbacks/<%= cb.callback_request_id %>/update?key=<%= req.query.key || '' %>&clientId=<%= clientId %>" method="POST" class="inline">
+                      <input type="hidden" name="key" value="<%= req.query.key || '' %>">
+                      <input type="hidden" name="clientId" value="<%= clientId %>">
+                      <input type="hidden" name="status" value="RESOLVED">
+                      <button type="submit" class="text-xs bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1.5 rounded-lg font-medium">Mark Called</button>
+                    </form>
+                  <% } else { %>
+                    <span class="text-xs text-slate-400">Resolved</span>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <% if (callbacks.length === 0) { %>
+        <div class="text-center py-12">
+          <div class="text-3xl mb-2">📞</div>
+          <p class="text-slate-500 text-sm">No callback requests yet</p>
+        </div>
+      <% } %>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function toggleVisitEdit(id) {
+  const row = document.getElementById('visit-edit-' + id);
+  row.classList.toggle('hidden');
+}
+</script>

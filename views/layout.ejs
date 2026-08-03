@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | RE Bot Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .sidebar-link { transition: all 0.15s; }
+    .sidebar-link:hover, .sidebar-link.active { background: #1e40af; color: white; }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body class="h-screen flex overflow-hidden bg-slate-50">
+
+  <!-- Sidebar -->
+  <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-xl flex-shrink-0">
+    <div class="p-6 border-b border-slate-700">
+      <h1 class="text-xl font-bold text-white tracking-tight">🏠 RE Bot Admin</h1>
+      <p class="text-xs text-slate-400 mt-1">Flow Engine v1.0</p>
+    </div>
+
+    <!-- Client Selector -->
+    <% if (typeof allClients !== 'undefined' && allClients.length > 0) { %>
+    <div class="px-3 py-3 border-b border-slate-700">
+      <label class="text-xs text-slate-400 uppercase font-semibold tracking-wider mb-1.5 block">Active Client</label>
+      <form id="client-switcher" method="GET" action="">
+        <select name="clientId" onchange="this.form.submit()" class="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
+          <% allClients.forEach(c => { %>
+            <option value="<%= c.client_id %>" <%= (typeof clientId !== 'undefined' && clientId == c.client_id) ? 'selected' : '' %>>
+              <%= c.business_name %> <%= c.active ? '' : '(Inactive)' %>
+            </option>
+          <% }) %>
+        </select>
+      </form>
+    </div>
+    <% } %>
+
+    <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
+      <a href="/admin?clientId=<%= typeof clientId !== 'undefined' ? clientId : '' %>"
+         class="sidebar-link <%= title === 'Dashboard' ? 'active' : '' %> block px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-3">
+        <span class="text-lg">📊</span> Dashboard
+      </a>
+      <a href="/admin/clients"
+         class="sidebar-link <%= title === 'Clients' ? 'active' : '' %> block px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-3">
+        <span class="text-lg">🏢</span> Clients
+      </a>
+
+      <!-- Scoped links — only show when a client is selected -->
+      <% if (typeof clientId !== 'undefined' && clientId) { %>
+        <div class="pt-2 pb-1 px-4">
+          <p class="text-xs text-slate-500 uppercase font-semibold tracking-wider">Client Workspace</p>
+        </div>
+        <a href="/admin/properties?clientId=<%= clientId %>"
+           class="sidebar-link <%= title === 'Properties' ? 'active' : '' %> block px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-3">
+          <span class="text-lg">🏘️</span> Properties
+        </a>
+        <a href="/admin/flows?clientId=<%= clientId %>"
+           class="sidebar-link <%= title === 'Flow Builder' ? 'active' : '' %> block px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-3">
+          <span class="text-lg">🔀</span> Flow Builder
+        </a>
+        <a href="/admin/leads?clientId=<%= clientId %>"
+           class="sidebar-link <%= title === 'Leads' ? 'active' : '' %> block px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-3">
+          <span class="text-lg">👥</span> Leads
+        </a>
+        <a href="/admin/visits?clientId=<%= clientId %>"
+           class="sidebar-link <%= title === 'Visits & Callbacks' ? 'active' : '' %> block px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-3">
+          <span class="text-lg">📅</span> Visits & Callbacks
+        </a>
+      <% } else { %>
+        <div class="px-4 py-3">
+          <p class="text-xs text-slate-500 italic">Select a client from the dropdown above to manage Properties, Flows, Leads, and Visits.</p>
+        </div>
+      <% } %>
+    </nav>
+
+    <!-- User Info & Logout -->
+    <div class="p-4 border-t border-slate-700">
+      <% if (typeof currentUser !== 'undefined' && currentUser) { %>
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-bold">
+            <%= (currentUser.displayName || currentUser.username).charAt(0).toUpperCase() %>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm text-white font-medium truncate"><%= currentUser.displayName || currentUser.username %></p>
+            <p class="text-xs text-slate-400"><%= currentUser.role === 'super_admin' ? 'Super Admin' : 'Client User' %></p>
+          </div>
+          <a href="/auth/logout" class="text-slate-400 hover:text-red-400 transition text-lg leading-none" title="Logout">⏻</a>
+        </div>
+      <% } else { %>
+        <p class="text-xs text-slate-500">Not logged in</p>
+      <% } %>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 flex flex-col overflow-hidden">
+    <!-- Top Bar -->
+    <header class="bg-white border-b px-8 py-4 flex justify-between items-center shadow-sm flex-shrink-0">
+      <div class="flex items-center gap-3">
+        <h2 class="text-2xl font-bold text-slate-800"><%= title %></h2>
+        <% if (typeof clientId !== 'undefined' && clientId && typeof allClients !== 'undefined') { %>
+          <% const currentClient = allClients.find(c => c.client_id == clientId); %>
+          <% if (currentClient) { %>
+            <a href="/admin/clients/<%= clientId %>" class="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-medium hover:bg-slate-200 transition">
+              <%= currentClient.business_name %>
+            </a>
+          <% } %>
+        <% } %>
+      </div>
+      <div class="flex items-center gap-4">
+        <% if (typeof currentUser !== 'undefined' && currentUser) { %>
+          <span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Online
+          </span>
+        <% } %>
+      </div>
+    </header>
+
+    <!-- Page Content -->
+    <div class="flex-1 overflow-auto p-8 fade-in">
+      <%- body %>
+    </div>
+  </main>
+
+</body>
+</html>

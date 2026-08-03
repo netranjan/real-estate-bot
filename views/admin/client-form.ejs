@@ -1,0 +1,56 @@
+<div class="max-w-2xl mx-auto">
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-200 bg-slate-50">
+      <h3 class="text-lg font-semibold text-slate-800"><%= client ? 'Edit Client' : 'New Client' %></h3>
+      <p class="text-sm text-slate-500 mt-1">
+        <%= client ? 'Update client details and Meta configuration.' : 'Create a new client tenant.' %>
+      </p>
+    </div>
+    
+    <form method="POST" action="<%= client ? '/admin/clients/' + client.client_id + '?key=' + (req.query.key || '') : '/admin/clients?key=' + (req.query.key || '') %>" class="p-6 space-y-5">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Business Name <span class="text-red-500">*</span></label>
+        <input type="text" name="business_name" required value="<%= client ? client.business_name : '' %>"
+               class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+      </div>
+      
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Meta WABA ID</label>
+          <input type="text" name="meta_waba_id" value="<%= client ? client.meta_waba_id || '' : '' %>"
+                 class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono text-xs">
+          <p class="text-xs text-slate-400 mt-1">WhatsApp Business Account ID</p>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Meta Phone Number ID</label>
+          <input type="text" name="meta_phone_number_id" value="<%= client ? client.meta_phone_number_id || '' : '' %>"
+                 class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono text-xs">
+          <p class="text-xs text-slate-400 mt-1">Registered phone number ID</p>
+        </div>
+      </div>
+      
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Meta Access Token</label>
+        <textarea name="meta_access_token" rows="3"
+                  class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono text-xs"><%= client ? client.meta_access_token || '' : '' %></textarea>
+        <p class="text-xs text-slate-400 mt-1">Permanent or long-lived access token for WhatsApp Cloud API</p>
+      </div>
+      
+      <% if (client) { %>
+      <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+        <input type="checkbox" name="active" id="active" value="true" <%= client.active ? 'checked' : '' %>
+               class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500">
+        <label for="active" class="text-sm font-medium text-slate-700">Client Active</label>
+        <span class="text-xs text-slate-400">Inactive clients cannot use the bot</span>
+      </div>
+      <% } %>
+      
+      <div class="flex items-center gap-3 pt-4 border-t border-slate-200">
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium text-sm">
+          <%= client ? 'Save Changes' : 'Create Client' %>
+        </button>
+        <a href="/admin/clients?key=<%= req.query.key || '' %>" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>

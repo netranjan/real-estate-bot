@@ -1,0 +1,84 @@
+<div class="space-y-6">
+  <div class="flex justify-between items-center">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex-1 mr-4">
+      <form method="GET" class="flex gap-3">
+        <input type="hidden" name="key" value="<%= req.query.key || '' %>">
+        <div class="flex-1">
+          <input type="text" name="search" value="<%= search || '' %>" placeholder="Search by business name..." 
+                 class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+        </div>
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium text-sm">Search</button>
+        <% if (search) { %>
+          <a href="/admin/clients?key=<%= req.query.key || '' %>" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm text-center">Clear</a>
+        <% } %>
+      </form>
+    </div>
+    <a href="/admin/clients/new?key=<%= req.query.key || '' %>" 
+       class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium text-sm flex items-center gap-2 shadow-sm">
+      <span>+</span> Add Client
+    </a>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 border-b">
+          <tr>
+            <th class="text-left px-6 py-3 font-semibold text-slate-600">ID</th>
+            <th class="text-left px-6 py-3 font-semibold text-slate-600">Business Name</th>
+            <th class="text-left px-6 py-3 font-semibold text-slate-600">WABA ID</th>
+            <th class="text-left px-6 py-3 font-semibold text-slate-600">Phone Number ID</th>
+            <th class="text-left px-6 py-3 font-semibold text-slate-600">Status</th>
+            <th class="text-left px-6 py-3 font-semibold text-slate-600">Created</th>
+            <th class="text-left px-6 py-3 font-semibold text-slate-600">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% clients.forEach(client => { 
+            const statusClass = client.active 
+              ? 'bg-green-100 text-green-700' 
+              : 'bg-red-100 text-red-700';
+          %>
+            <tr class="border-b hover:bg-slate-50 transition">
+              <td class="px-6 py-4 font-mono text-xs">
+                <a href="/admin/clients/<%= client.client_id %>?key=<%= req.query.key || '' %>" class="text-blue-600 hover:underline font-medium">
+                  #<%= client.client_id %>
+                </a>
+              </td>
+              <td class="px-6 py-4 font-medium text-slate-800"><%= client.business_name %></td>
+              <td class="px-6 py-4 text-slate-600 font-mono text-xs"><%= client.meta_waba_id || '-' %></td>
+              <td class="px-6 py-4 text-slate-600 font-mono text-xs"><%= client.meta_phone_number_id || '-' %></td>
+              <td class="px-6 py-4">
+                <span class="px-2 py-1 rounded text-xs font-semibold <%= statusClass %>">
+                  <%= client.active ? 'Active' : 'Inactive' %>
+                </span>
+              </td>
+              <td class="px-6 py-4 text-slate-500 text-xs">
+                <%= new Date(client.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) %>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-2">
+                  <a href="/admin/clients/<%= client.client_id %>/edit?key=<%= req.query.key || '' %>" 
+                     class="text-blue-600 hover:text-blue-800 text-xs font-medium px-2 py-1 hover:bg-blue-50 rounded">Edit</a>
+                  <form method="POST" action="/admin/clients/<%= client.client_id %>/toggle?key=<%= req.query.key || '' %>" class="inline">
+                    <button type="submit" class="text-xs font-medium px-2 py-1 rounded hover:bg-slate-100 <%= client.active ? 'text-amber-600 hover:text-amber-800' : 'text-green-600 hover:text-green-800' %>">
+                      <%= client.active ? 'Deactivate' : 'Activate' %>
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+
+    <% if (clients.length === 0) { %>
+      <div class="text-center py-16">
+        <div class="text-4xl mb-3">🏢</div>
+        <p class="text-slate-500 font-medium">No clients found</p>
+        <p class="text-sm text-slate-400 mt-1">Add your first client to get started</p>
+      </div>
+    <% } %>
+  </div>
+</div>
