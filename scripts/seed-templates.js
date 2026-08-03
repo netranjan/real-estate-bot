@@ -1,8 +1,6 @@
-// scripts/seed-templates.js
 const pool = require('../db/pool');
 
 const FLOWS = [
-  // Standard Property Sales Flow
   {
     name: 'Standard Sales Flow',
     nodes: [
@@ -11,10 +9,10 @@ const FLOWS = [
         type: 'collect_input',
         name: 'Welcome',
         config: {
-          text: 'Welcome! How can we help?',
+          text: 'Hello! 👋 Welcome to our premium property portal.\n\nMay I know your purpose? Are you looking for a home for self use or as an investment?',
           options: [
-            { label: 'Self Use', value: 'BUY' },
-            { label: 'Investment', value: 'RENT' }
+            { label: '🏠 Self Use', value: 'SELF_USE' },
+            { label: '📈 Investment', value: 'INVESTMENT' }
           ],
           field: 'requirement_type'
         }
@@ -51,63 +49,64 @@ const FLOWS = [
         type: 'property_welcome',
         name: 'Property Details',
         config: {
-          text: 'What would you like to do?',
+          text: '{{property_name}}',
           buttons: [
-            { title: 'Brochure', id: 'BROCHURE' },
-            { title: 'Book Visit', id: 'VISIT' },
-            { title: 'Callback', id: 'CALL' }
+            { title: '📄 Brochure', id: 'BROCHURE' },
+            { title: '📅 Site Visit', id: 'VISIT' },
+            { title: '📞 Callback', id: 'CALL' }
           ]
         }
       },
       {
-        code: 'media',
+        code: 'brochure',
         type: 'send_document',
         name: 'Brochure',
         config: {
-          media_items: [
-            {
-              type: 'document',
-              url: 'https://example.com/brochure.pdf',
-              caption: 'Here is the brochure you requested',
-              filename: 'Brochure.pdf'
-            }
-          ]
+          text: 'Here is the brochure you requested.',
+          source: 'property',
+          property_asset_type: 'all'
         }
       },
       {
         code: 'visit',
         type: 'book_appointment',
         name: 'Book Visit',
-        config: { options: [] } // empty = use property's own slots
+        config: {
+          text: 'Let\'s schedule your site visit! 🏗️\n\nPlease pick a convenient slot.'
+        }
       },
       {
         code: 'callback',
         type: 'request_callback',
         name: 'Callback',
-        config: {}
+        config: {
+          text: 'Got it! Our sales representative will call you on this WhatsApp number within 15 minutes. 📞'
+        }
       },
       {
         code: 'end',
         type: 'end_conversation',
         name: 'End',
-        config: { text: 'Thank you for your interest!' }
+        config: {
+          text: 'Thank you for reaching out!'
+        }
       }
     ],
     edges: [
-      // Welcome → Configuration (both Self Use & Investment)
-      { from: 'welcome', to: 'config', input: 'BUY' },
-      { from: 'welcome', to: 'config', input: 'RENT' },
+      // Welcome → Configuration
+      { from: 'welcome', to: 'config', input: 'SELF_USE' },
+      { from: 'welcome', to: 'config', input: 'INVESTMENT' },
 
-      // Configuration → Property List
+      // Configuration → Property List (default)
       { from: 'config', to: 'list' },
 
       // Property Welcome → Actions
-      { from: 'prop_welcome', to: 'media', input: 'BROCHURE' },
+      { from: 'prop_welcome', to: 'brochure', input: 'BROCHURE' },
       { from: 'prop_welcome', to: 'visit', input: 'VISIT' },
       { from: 'prop_welcome', to: 'callback', input: 'CALL' },
 
-      // Brochure → back to Property Welcome (user can choose another action)
-      { from: 'media', to: 'prop_welcome' },
+      // Brochure → back to Property Welcome (user can pick another action)
+      { from: 'brochure', to: 'prop_welcome' },
 
       // Visit / Callback → End
       { from: 'visit', to: 'end' },

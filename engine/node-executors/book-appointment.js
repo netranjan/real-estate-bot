@@ -20,8 +20,8 @@ async function execute(lead, config) {
     if (slots.length > 0) {
       rows = slots.map(s => ({
         id: `VISIT_${s.visit_option_id}`,
-        title: String(s.slot_label || s.slot_time || 'Visit').slice(0, 24),
-        description: String(s.slot_time || '').slice(0, 72)
+        title: String(s.option_name || 'Visit').slice(0, 24),
+        description: ''
       }));
     }
   }
