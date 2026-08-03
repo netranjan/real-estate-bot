@@ -1,6 +1,5 @@
 const db = require('../db/queries');
 
-// Resolve {{variables}} inside node config strings
 async function resolveConfig(config, leadId) {
   const lead = await db.getLeadById(leadId);
   const answers = await db.getLeadAnswers(leadId);
@@ -10,31 +9,37 @@ async function resolveConfig(config, leadId) {
   }
 
   const context = {
-    // Lead info
     lead_name: lead.name || 'there',
     whatsapp_number: lead.whatsapp_number,
-
-    // Answers
     requirement_type: answersMap.requirement_type || '',
     configuration: answersMap.configuration || '',
     budget_range: answersMap.budget_range || '',
     timeline: answersMap.timeline || '',
-
-    // Context data
     selected_property_id: lead.context_data?.selected_property_id || null,
     selected_property_name: lead.context_data?.selected_property_name || '',
     selected_agent_id: lead.assigned_agent_id || null,
   };
 
-  // If property selected, fetch its name
-  if (context.selected_property_id && !context.selected_property_name) {
+  // Resolve selected property fields
+  if (context.selected_property_id) {
     const prop = await db.getPropertyById(context.selected_property_id);
     if (prop) {
       context.selected_property_name = prop.property_name;
+      context.property_name = prop.property_name;
+      context.property_location = prop.location || '';
+      context.property_price = prop.price_min ? `₹${(prop.price_min / 100000).toFixed(1)}L` : '';
+      context.property_price_max = prop.price_max ? `₹${(prop.price_max / 100000).toFixed(1)}L` : '';
+      context.property_possession = prop.possession_date
+        ? new Date(prop.possession_date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+        : 'Ready to Move';
+      context.property_brochure_url = prop.brochure_url || '';
+      context.property_configuration = Array.isArray(prop.configuration_types)
+        ? prop.configuration_types.join(', ')
+        : (prop.configuration_types || '');
     }
   }
 
-  // If agent assigned, fetch agent details
+  // Resolve agent fields
   if (context.selected_agent_id) {
     const agent = await db.getAgentById(context.selected_agent_id);
     if (agent) {
@@ -43,7 +48,6 @@ async function resolveConfig(config, leadId) {
     }
   }
 
-  // Deep clone and resolve
   const resolved = JSON.parse(JSON.stringify(config));
 
   function resolveString(str) {
@@ -72,6 +76,4 @@ async function resolveConfig(config, leadId) {
   return traverse(resolved);
 }
 
-module.exports = {
-  resolveConfig,
-};
+module.exports = { resolveConfig };

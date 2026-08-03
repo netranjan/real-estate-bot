@@ -1,4 +1,3 @@
-// engine/node-executors/end-conversation.js
 const send = require('../../whatsapp/send');
 const { textMessage } = require('../../whatsapp/payloads');
 const db = require('../../db/queries');
@@ -10,25 +9,30 @@ async function execute(lead, config) {
   }
 
   const to = lead.whatsapp_number;
-  const text = config.text || 'Thank you for contacting us! We’ll get back to you if needed. 🙏';
-
-  const payload = textMessage(to, text);
+  const text = config.text || 'Thank you for reaching out. We will get back to you soon.';
 
   await send({
     phoneNumberId: client.meta_phone_number_id,
     accessToken: client.meta_access_token,
-    payload,
+    payload: textMessage(to, text),
   });
 
-  // Optionally update lead pipeline stage (optional)
-  // await db.updateLeadPipeline(lead.lead_id, 'Conversation Ended');
+  // ═══════════════════════════════════════════════════════
+  // CLEAR property-specific context so it doesn't leak
+  // into the next conversation if the user messages again
+  // ═══════════════════════════════════════════════════════
+  const ctx = lead.context_data || {};
+  delete ctx.selected_property_id;
+  delete ctx.selected_property_name;
+  delete ctx.selected_visit_option_id;
+  await db.updateLeadContext(lead.lead_id, ctx);
 
-  return {
-    success: true,
-    type: 'CONVERSATION_ENDED',
-    wait_for_input: false,
-    done: true
-  };
+  return { success: true, type: 'CONVERSATION_ENDED' };
 }
 
-module.exports = { execute };
+module.exports = {
+  execute,
+  defaultConfig: {
+    text: 'Thank you for reaching out. We will get back to you soon.'
+  }
+};
