@@ -1,6 +1,5 @@
 const send = require('../../whatsapp/send');
-const { textMessage } = require('../../whatsapp/payloads');
-const visitService = require('../../services/visit-service');
+const { textMessage, listMessage } = require('../../whatsapp/payloads');
 const db = require('../../db/queries');
 
 async function execute(lead, config) {
@@ -10,26 +9,58 @@ async function execute(lead, config) {
   }
 
   const to = lead.whatsapp_number;
-  const { text, options_source, confirmation_message } = config;
 
-  if (!text) {
-    throw new Error('book_appointment node missing "text" in config');
+  // Build slot rows
+  let rows = [];
+
+  // 1. Predefined slots from node config
+  if (config.options && config.options.length > 0) {
+    rows = config.options.map((opt, idx) => ({
+      id: `VISIT_${idx}`,
+      title: String(opt.label || opt.value || 'Slot').slice(0, 24),
+      description: String(opt.description || '').slice(0, 72)
+    }));
+  }
+  // 2. Property-specific slots from DB
+  else if (lead.context_data?.selected_property_id) {
+    const slots = await db.getVisitOptionsForProperty(lead.context_data.selected_property_id);
+    rows = slots.map(s => ({
+      id: `VISIT_${s.visit_option_id}`,
+      title: String(s.slot_label || s.slot_time || 'Visit').slice(0, 24),
+      description: String(s.slot_time || '').slice(0, 72)
+    }));
   }
 
-  // This executor on first pass just shows the options (handled by show-list executor usually)
-  // But if called directly, we send the text prompt
+  // Send slots as interactive list
+  if (rows.length > 0) {
+    const payload = listMessage(
+      to,
+      config.text || 'Please pick a convenient slot:',
+      'Select Slot',
+      [{ title: 'Available Slots', rows }]
+    );
+
+    await send({
+      phoneNumberId: client.meta_phone_number_id,
+      accessToken: client.meta_access_token,
+      payload,
+    });
+
+    return { success: true, type: 'SLOT_LIST_SENT', wait_for_input: true };
+  }
+
+  // No slots available
   await send({
     phoneNumberId: client.meta_phone_number_id,
     accessToken: client.meta_access_token,
-    payload: textMessage(to, text),
+    payload: textMessage(to, config.text || 'No visit slots are currently available.'),
   });
 
-  return { success: true, type: 'APPOINTMENT_PROMPT_SENT' };
+  return { success: true, type: 'NO_SLOTS_AVAILABLE' };
 }
 
 async function saveReply(lead, config, userInput) {
-  // userInput format: "VISIT_123" where 123 is visit_option_id
-  if (!userInput.startsWith('VISIT_')) {
+  if (!String(userInput).startsWith('VISIT_')) {
     return { valid: false, error: 'Invalid visit option' };
   }
 
@@ -43,26 +74,25 @@ async function saveReply(lead, config, userInput) {
     return { valid: false, error: 'No property selected' };
   }
 
-  // Use assigned agent if any, else null (can be assigned later)
   const agentId = lead.assigned_agent_id || null;
 
-  const visit = await visitService.bookVisit({
+  // Create the site visit record
+  await db.createSiteVisit({
     leadId: lead.lead_id,
     propertyId,
     visitOptionId,
     agentId,
   });
 
-  // Update pipeline stage
   await db.updateLeadPipeline(lead.lead_id, 'Site Visit Booked');
 
-  return { valid: true, visit_id: visit.site_visit_id };
+  return { valid: true, visit_id: visitOptionId };
 }
 
 module.exports = {
   execute,
   saveReply,
   defaultConfig: {
-    text: 'Choose a visit slot:'
+    text: 'Let\'s schedule your site visit! 🏗️\n\nPlease pick a convenient slot.'
   }
 };
