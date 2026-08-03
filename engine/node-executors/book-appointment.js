@@ -9,25 +9,29 @@ async function execute(lead, config) {
   }
 
   const to = lead.whatsapp_number;
-
-  // Build slot rows
   let rows = [];
 
-  // 1. Predefined slots from node config
-  if (config.options && config.options.length > 0) {
+  // ═══════════════════════════════════════════════════════
+  // FIX: Property DB slots come FIRST when a property is selected.
+  // Predefined options are only fallback when no property or no DB slots.
+  // ═══════════════════════════════════════════════════════
+  if (lead.context_data?.selected_property_id) {
+    const slots = await db.getVisitOptionsForProperty(lead.context_data.selected_property_id);
+    if (slots.length > 0) {
+      rows = slots.map(s => ({
+        id: `VISIT_${s.visit_option_id}`,
+        title: String(s.slot_label || s.slot_time || 'Visit').slice(0, 24),
+        description: String(s.slot_time || '').slice(0, 72)
+      }));
+    }
+  }
+
+  // Fallback to predefined options only if DB returned nothing
+  if (rows.length === 0 && config.options && config.options.length > 0) {
     rows = config.options.map((opt, idx) => ({
       id: `VISIT_${idx}`,
       title: String(opt.label || opt.value || 'Slot').slice(0, 24),
       description: String(opt.description || '').slice(0, 72)
-    }));
-  }
-  // 2. Property-specific slots from DB
-  else if (lead.context_data?.selected_property_id) {
-    const slots = await db.getVisitOptionsForProperty(lead.context_data.selected_property_id);
-    rows = slots.map(s => ({
-      id: `VISIT_${s.visit_option_id}`,
-      title: String(s.slot_label || s.slot_time || 'Visit').slice(0, 24),
-      description: String(s.slot_time || '').slice(0, 72)
     }));
   }
 
@@ -35,7 +39,7 @@ async function execute(lead, config) {
   if (rows.length > 0) {
     const payload = listMessage(
       to,
-      config.text || 'Please pick a convenient slot:',
+      config.text || 'Let\'s schedule your site visit! 🏗️\n\nPlease pick a convenient slot.',
       'Select Slot',
       [{ title: 'Available Slots', rows }]
     );
@@ -49,7 +53,7 @@ async function execute(lead, config) {
     return { success: true, type: 'SLOT_LIST_SENT', wait_for_input: true };
   }
 
-  // No slots available
+  // Nothing available
   await send({
     phoneNumberId: client.meta_phone_number_id,
     accessToken: client.meta_access_token,
@@ -76,7 +80,6 @@ async function saveReply(lead, config, userInput) {
 
   const agentId = lead.assigned_agent_id || null;
 
-  // Create the site visit record
   await db.createSiteVisit({
     leadId: lead.lead_id,
     propertyId,
