@@ -1,7 +1,6 @@
 const db = require('../db/queries');
 const contextResolver = require('./context-resolver');
 
-// Executor registry — maps node_type_code → executor module
 const EXECUTORS = {
   send_message:      require('./node-executors/send-message'),
   collect_input:     require('./node-executors/collect-input'),
@@ -21,7 +20,6 @@ function getExecutor(nodeType) {
   return executor;
 }
 
-// Determine if a node expects user input after execution
 function nodeWaitsForInput(nodeType, config, result) {
   if (result && typeof result.wait_for_input === 'boolean') return result.wait_for_input;
   switch (nodeType) {
@@ -42,7 +40,6 @@ function nodeWaitsForInput(nodeType, config, result) {
   }
 }
 
-// Extract and save special ID patterns (PROPERTY_123, VISIT_1) to context
 async function extractAndSaveContext(lead, userInput) {
   if (!userInput || typeof userInput !== 'string') return;
   
@@ -68,20 +65,17 @@ async function extractAndSaveContext(lead, userInput) {
   }
 }
 
-// ─── Case‑insensitive edge finder ──────────────────────────────
 async function findMatchingEdge(nodeId, userInput, includeDefault = false) {
   const allEdges = await db.getEdgesFromNode(nodeId);
   if (!allEdges || allEdges.length === 0) return null;
 
   const normalizedInput = userInput ? String(userInput).trim().toLowerCase() : null;
 
-  // Try exact (case‑insensitive) match first
   for (const edge of allEdges) {
     if (edge.user_input_value === null) continue;
     if (String(edge.user_input_value).trim().toLowerCase() === normalizedInput) return edge;
   }
 
-  // If includeDefault and we haven't matched, return the default (null) edge
   if (includeDefault) {
     for (const edge of allEdges) {
       if (edge.user_input_value === null) return edge;
@@ -91,7 +85,29 @@ async function findMatchingEdge(nodeId, userInput, includeDefault = false) {
   return null;
 }
 
-// ─── Execute a node and auto‑chain through default edges (max depth 5) ──
+// ═══════════════════════════════════════════════════════
+// FIX: Recover stale welcome buttons (BROCHURE/VISIT/CALL)
+// When user taps a button from an old message while at a different node
+// ═══════════════════════════════════════════════════════
+async function recoverStaleIntent(lead, userInput) {
+  const intents = {
+    BROCHURE: 'send_document',
+    VISIT:    'book_appointment',
+    CALL:     'request_callback',
+    BUY:      'send_document',
+    RENT:     'request_callback'
+  };
+  const targetType = intents[String(userInput).toUpperCase()];
+  if (!targetType) return null;
+
+  const nodes = await db.getFlowNodes(lead.current_flow_id);
+  const target = nodes.find(n => n.node_type === targetType);
+  if (!target) return null;
+
+  console.log(`🔄 Stale intent recovery: "${userInput}" → ${target.node_code}`);
+  return { to_node_id: target.node_id };
+}
+
 async function executeAndChain(lead, node, depth = 0) {
   if (depth > 5) {
     console.warn('⚠️ Max chain depth reached, stopping to prevent infinite loop');
@@ -109,7 +125,6 @@ async function executeAndChain(lead, node, depth = 0) {
 
   const result = await executor.execute(lead, resolvedConfig);
 
-  // Fallback routing for empty lists (no matching properties)
   if (result && result.use_fallback && resolvedConfig.fallback_node_id) {
     console.log(`⏭️ Fallback: ${node.node_code} → fallback node ${resolvedConfig.fallback_node_id}`);
     await db.updateLeadNode(lead.lead_id, resolvedConfig.fallback_node_id);
@@ -126,7 +141,6 @@ async function executeAndChain(lead, node, depth = 0) {
     return;
   }
 
-  // Find default edge (user_input_value IS NULL)
   const defaultEdge = await findMatchingEdge(node.node_id, null, true);
 
   if (!defaultEdge) {
@@ -143,7 +157,6 @@ async function executeAndChain(lead, node, depth = 0) {
   await executeAndChain(updatedLead, nextNode, depth + 1);
 }
 
-// ─── Main message processor ─────────────────────────────────────
 async function processMessage(lead, userInput) {
   const currentNode = await db.getNodeById(lead.current_node_id);
   if (!currentNode) {
@@ -156,17 +169,14 @@ async function processMessage(lead, userInput) {
   const executor = getExecutor(currentNode.node_type);
   const resolvedConfig = await contextResolver.resolveConfig(currentNode.config, lead.lead_id);
 
-  // Save special IDs into context
   await extractAndSaveContext(lead, userInput);
 
   let edge = null;
 
-  // 1. If the executor has saveReply, validate the input for the current node
   if (typeof executor.saveReply === 'function') {
     const saveResult = await executor.saveReply(lead, resolvedConfig, userInput);
 
     if (saveResult.valid) {
-      // Use canonical value first, then raw input
       const canonicalValue = saveResult.value || userInput;
       console.log(`✅ Valid reply. Canonical value: "${canonicalValue}", raw: "${userInput}"`);
 
@@ -178,7 +188,6 @@ async function processMessage(lead, userInput) {
       if (!edge && (String(userInput).startsWith('PROPERTY_') || String(userInput).startsWith('VISIT_'))) {
         edge = await findMatchingEdge(currentNode.node_id, null, true);
       }
-      // CRITICAL FIX: fallback to default edge so valid replies never get stuck
       if (!edge) {
         console.log(`⚠️ No conditional edge matched, trying default edge`);
         edge = await findMatchingEdge(currentNode.node_id, null, true);
@@ -195,15 +204,20 @@ async function processMessage(lead, userInput) {
       await executeAndChain(updatedLead, nextNode);
       return;
     } else {
-      // Invalid reply for current node
       console.log('❌ Current node rejected:', saveResult.error);
     }
   }
 
-  // 2. For nodes without saveReply (send_message with buttons, property_welcome, etc.)
   edge = await findMatchingEdge(currentNode.node_id, userInput);
   if (!edge && (String(userInput).startsWith('PROPERTY_') || String(userInput).startsWith('VISIT_'))) {
     edge = await findMatchingEdge(currentNode.node_id, null, true);
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // FIX: Stale button recovery before giving up
+  // ═══════════════════════════════════════════════════════
+  if (!edge) {
+    edge = await recoverStaleIntent(lead, userInput);
   }
 
   if (edge) {

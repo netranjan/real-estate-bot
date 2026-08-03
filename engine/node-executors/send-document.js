@@ -11,7 +11,49 @@ async function execute(lead, config) {
   const to = lead.whatsapp_number;
   const propertyId = lead.context_data?.selected_property_id;
 
-  // 1. If static media_items are defined in the node config, use them
+  // ═══════════════════════════════════════════════════════
+  // FIX: If a property is selected, send ITS assets first.
+  // Static media_items only used when NO property is selected.
+  // ═══════════════════════════════════════════════════════
+  if (propertyId) {
+    const property = await db.getPropertyById(propertyId);
+    const assets = await db.pool.query(
+      'SELECT * FROM media_assets WHERE property_id = $1 ORDER BY created_at',
+      [propertyId]
+    );
+
+    let items = [];
+    if (property?.brochure_url) {
+      items.push({ type: 'document', url: property.brochure_url, name: 'Brochure.pdf' });
+    }
+
+    for (const asset of assets.rows) {
+      if (!asset.asset_url || items.find(i => i.url === asset.asset_url)) continue;
+      items.push({
+        type: asset.asset_type || 'document',
+        url: asset.asset_url,
+        name: asset.asset_name || 'File'
+      });
+    }
+
+    if (items.length > 0) {
+      for (const item of items) {
+        let payload;
+        if (item.type === 'image') payload = imageMessage(to, item.url, item.name);
+        else if (item.type === 'video') payload = videoMessage(to, item.url, item.name);
+        else payload = documentMessage(to, item.url, item.name);
+
+        await send({
+          phoneNumberId: client.meta_phone_number_id,
+          accessToken: client.meta_access_token,
+          payload,
+        });
+      }
+      return { success: true, type: 'PROPERTY_ASSETS_SENT', count: items.length };
+    }
+  }
+
+  // 2. Static fallback (only when no property selected)
   if (config.media_items && Array.isArray(config.media_items) && config.media_items.length > 0) {
     for (const item of config.media_items) {
       const url = item.url || item.document_url || '';
@@ -34,35 +76,7 @@ async function execute(lead, config) {
     return { success: true, type: 'STATIC_ASSETS_SENT', count: config.media_items.length };
   }
 
-  // 2. If a property is selected, send all its assets
-  if (propertyId) {
-    const assets = await db.pool.query(
-      'SELECT * FROM media_assets WHERE property_id = $1 ORDER BY created_at',
-      [propertyId]
-    );
-
-    if (assets.rows.length > 0) {
-      for (const asset of assets.rows) {
-        if (!asset.asset_url) continue;
-
-        let payload;
-        switch (asset.asset_type) {
-          case 'image': payload = imageMessage(to, asset.asset_url, asset.asset_name || 'Image'); break;
-          case 'video': payload = videoMessage(to, asset.asset_url, asset.asset_name || 'Video'); break;
-          default: payload = documentMessage(to, asset.asset_url, asset.asset_name || 'Document.pdf'); break;
-        }
-
-        await send({
-          phoneNumberId: client.meta_phone_number_id,
-          accessToken: client.meta_access_token,
-          payload,
-        });
-      }
-      return { success: true, type: 'PROPERTY_ASSETS_SENT', count: assets.rows.length };
-    }
-  }
-
-  // 3. Fallback to legacy single document (brochure_url)
+  // 3. Legacy single document fallback
   let url = config.document_url || null;
   if (!url && config.document_url_field) {
     if (config.document_url_field === 'selected_property.brochure_url') {

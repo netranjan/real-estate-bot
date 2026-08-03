@@ -18,7 +18,7 @@ async function execute(lead, config) {
   });
 
   // ═══════════════════════════════════════════════════════
-  // CLEAR property-specific context so it doesn't leak
+  // FIX: Clear property-specific context so it doesn't leak
   // into the next conversation if the user messages again
   // ═══════════════════════════════════════════════════════
   const ctx = lead.context_data || {};
