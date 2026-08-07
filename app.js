@@ -4,7 +4,7 @@ const expressLayouts = require('express-ejs-layouts');
 const fs = require('fs');
 const path = require('path');
 const pool = require('./db/pool');
-const { handleIncomingMessage } = require('./engine');
+const { handleIncomingMessage } = require('./core/engine');
 
 const app = express();
 app.use(express.json());

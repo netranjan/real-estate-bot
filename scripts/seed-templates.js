@@ -49,7 +49,9 @@ const FLOWS = [
         type: 'property_welcome',
         name: 'Property Details',
         config: {
-          text: '{{property_name}}',
+          // Main message comes from properties.welcome_message DB column
+          // suffix_text is appended after it
+          suffix_text: 'Tap an option below to proceed:',
           buttons: [
             { title: '📄 Brochure', id: 'BROCHURE' },
             { title: '📅 Site Visit', id: 'VISIT' },
