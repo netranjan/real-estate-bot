@@ -86,56 +86,31 @@ async function buildContext(leadId) {
   return { ctx, propertyProxy, agentProxy };
 }
 
-// ── RESOLVE A SINGLE VARIABLE KEY ──
-async function resolveSingleVariable(key, context) {
-  const [main, sub] = key.split('.');
-
-  // Direct context key
-  if (!sub && context.ctx[main] !== undefined) {
-    return String(context.ctx[main] ?? '');
-  }
-
-  // Property dot notation: {{property.price}}
-  if (main === 'property' || main === 'selected_property') {
-    return await context.propertyProxy[sub || main] ?? '';
-  }
-
-  // Property flat notation: {{property_price}}, {{property_name}}, etc.
-  if (main.startsWith('property_')) {
-    return await context.propertyProxy[main] ?? '';
-  }
-
-  // Agent dot notation: {{agent.name}}
-  if (main === 'agent') {
-    return await context.agentProxy[sub || main] ?? '';
-  }
-
-  // Agent flat notation: {{agent_name}}, {{agent_phone}}, etc.
-  if (main.startsWith('agent_')) {
-    return await context.agentProxy[main] ?? '';
-  }
-
-  // Unknown key — return empty to avoid leaking raw templates
-  return '';
-}
-
-// ── RESOLVE A SINGLE VALUE (string with 0..N {{vars}}) ──
+// ── RESOLVE A SINGLE VALUE ──
 async function resolveValue(value, context) {
   if (typeof value !== 'string') return value;
 
-  const matches = [...value.matchAll(/\{\{(\w+(?:\.\w+)?)\}\}/g)];
-  if (matches.length === 0) return value;
+  // Match {{key}} or {{object.key}}
+  return value.replace(/\{\{(\w+(?:\.\w+)?)\}\}/g, async (match, key) => {
+    const [main, sub] = key.split('.');
 
-  let result = '';
-  let lastIndex = 0;
-  for (const match of matches) {
-    const [fullMatch, key] = match;
-    result += value.slice(lastIndex, match.index);
-    result += await resolveSingleVariable(key, context);
-    lastIndex = match.index + fullMatch.length;
-  }
-  result += value.slice(lastIndex);
-  return result;
+    // Direct context key
+    if (!sub && context.ctx[main] !== undefined) {
+      return String(context.ctx[main] ?? '');
+    }
+
+    // Property sub-keys (lazy)
+    if (main === 'property' || main === 'selected_property') {
+      return await context.propertyProxy[sub || main] ?? match;
+    }
+
+    // Agent sub-keys (lazy)
+    if (main === 'agent') {
+      return await context.agentProxy[sub || main] ?? match;
+    }
+
+    return match;
+  });
 }
 
 // ── TRAVERSE AND RESOLVE ENTIRE CONFIG ──
@@ -145,7 +120,15 @@ async function resolveConfig(config, leadId) {
 
   async function traverse(obj) {
     if (typeof obj === 'string') {
-      return await resolveValue(obj, context);
+      // String replacement is sync-looking but we need to await the regex replace
+      // Since replace with async callback returns a Promise, we handle it
+      const matches = [...obj.matchAll(/\{\{(\w+(?:\.\w+)?)\}\}/g)];
+      let result = obj;
+      for (const match of matches) {
+        const resolved = await resolveValue(match[0], context);
+        result = result.replace(match[0], resolved);
+      }
+      return result;
     }
     if (Array.isArray(obj)) {
       const out = [];
@@ -165,10 +148,4 @@ async function resolveConfig(config, leadId) {
   return traverse(cloned);
 }
 
-// ── RESOLVE A RAW STRING (for DB-sourced templates like welcome_message) ──
-async function resolveString(str, leadId) {
-  const context = await buildContext(leadId);
-  return resolveValue(str, context);
-}
-
-module.exports = { resolveConfig, deepClone, resolveString };
+module.exports = { resolveConfig, deepClone };

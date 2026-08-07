@@ -91,18 +91,6 @@ async function recoverStaleIntent(lead, userInput) {
   return { to_node_id: target.node_id };
 }
 
-// ── Property selection recovery (when dynamic edges are missing) ──
-async function recoverPropertySelection(lead, userInput) {
-  if (!String(userInput).startsWith('PROPERTY_')) return null;
-
-  const nodes = await repo.getFlowNodes(lead.current_flow_id);
-  const target = nodes.find(n => n.node_type === 'property_welcome');
-  if (!target) return null;
-
-  console.log(`🔄 Property selection recovery: "${userInput}" → ${target.node_code}`);
-  return { to_node_id: target.node_id };
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // ITERATIVE FLOW RUNNER (replaces recursive executeAndChain)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -223,9 +211,6 @@ async function processUserInput(lead, userInput) {
   // Stale intent recovery before giving up
   if (!edge) {
     edge = await recoverStaleIntent(lead, userInput);
-    if (!edge) {
-      edge = await recoverPropertySelection(lead, userInput);
-    }
   }
 
   if (edge) {

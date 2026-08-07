@@ -82,7 +82,7 @@ const FLOWS = [
         type: 'request_callback',
         name: 'Callback',
         config: {
-          confirmation_message: 'Got it! Our sales representative will call you on this WhatsApp number within 15 minutes. 📞'
+          text: 'Got it! Our sales representative will call you on this WhatsApp number within 15 minutes. 📞'
         }
       },
       {
@@ -101,9 +101,6 @@ const FLOWS = [
 
       // Configuration → Property List (default)
       { from: 'config', to: 'list' },
-
-      // Property List → Property Welcome (default fallback for any selection)
-      { from: 'list', to: 'prop_welcome' },
 
       // Property Welcome → Actions
       { from: 'prop_welcome', to: 'brochure', input: 'BROCHURE' },

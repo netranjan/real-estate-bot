@@ -5,7 +5,6 @@
 const WhatsAppClient = require('../transport/whatsapp');
 const repo = require('../db/repository');
 const { formatPrice } = require('../utils/format-price');
-const { resolveString } = require('./context');
 const scoringService = require('../services/scoring-service');
 const callbackService = require('../services/callback-service');
 const propertyService = require('../services/property-service');
@@ -265,8 +264,12 @@ async function propertyWelcome(lead, config) {
   let messageText = property.welcome_message || '';
   if (config.suffix_text) messageText += '\n\n' + config.suffix_text;
 
-  // Resolve template variables ({{property_price}}, {{property_possession}}, etc.)
-  messageText = await resolveString(messageText, lead.lead_id);
+  messageText = messageText
+    .replace(/\{\{property_name\}\}/g, property.property_name)
+    .replace(/\{\{price\}\}/g, property.price_min ? formatPrice(property.price_min) : '')
+    .replace(/\{\{possession\}\}/g, property.possession_date
+      ? new Date(property.possession_date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+      : 'Ready to Move');
 
   const buttons = (config.buttons || []).map(b => ({
     id: String(b.id),
@@ -384,10 +387,7 @@ async function saveVisitReply(lead, _config, userInput) {
 async function requestCallback(lead, config) {
   const wa = await getWhatsApp(lead);
   const to = lead.whatsapp_number;
-  const { sla_minutes, assign_to } = config;
-  
-  // Support both confirmation_message and legacy text key
-  const confirmation_message = config.confirmation_message || config.text;
+  const { sla_minutes, assign_to, confirmation_message } = config;
 
   let agentId = lead.assigned_agent_id || null;
   let agentName = 'our sales representative';
@@ -416,7 +416,7 @@ async function requestCallback(lead, config) {
 
   const message = confirmation_message
     ? confirmation_message.replace(/\{\{agent_name\}\}/g, agentName)
-    : `Got it! ${agentName} will call you on this WhatsApp number within ${sla_minutes || 15} minutes. 📞\n\nThank you for reaching out!`;
+    : `Got it! Our sales representative ${agentName} will call you on this WhatsApp number within ${sla_minutes || 15} minutes. 📞\n\nThank you for reaching out!`;
 
   await wa.sendText(to, message);
   return { success: true, type: 'CALLBACK_REQUESTED', callback_id: callback.callback_request_id };

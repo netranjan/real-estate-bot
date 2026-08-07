@@ -26,7 +26,7 @@ const metaAccessToken = process.argv[5] || null;
     console.log(`✅ Client created successfully!`);
     console.log(`   ID: ${newClient.client_id}`);
     console.log(`   Name: ${newClient.business_name}`);
-    console.log(`\n   Next step: node scripts/seed-templates.js ${newClient.client_id}`);
+    console.log(`\n   Next step: node scripts/seed-property.js ${newClient.client_id}`);
   } catch (err) {
     console.error('❌ Failed to create client:', err.message);
     process.exit(1);
