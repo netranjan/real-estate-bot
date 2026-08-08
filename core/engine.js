@@ -110,13 +110,7 @@ async function findNextEdge(nodeId, result, userInput) {
   const edges = await repo.getEdgesFromNode(nodeId);
   if (!edges.length) return null;
 
-  // Priority 1: outcome-based routing (natural situations)
-  if (result?.outcome) {
-    const byOutcome = edges.find(e => e.outcome_name === result.outcome);
-    if (byOutcome) return byOutcome;
-  }
-
-  // Priority 2: user input matching (existing behavior)
+  // Priority 1: specific user input (per-button routing)
   if (userInput) {
     const normalizedInput = String(userInput).trim().toLowerCase();
     const byInput = edges.find(e => {
@@ -124,6 +118,12 @@ async function findNextEdge(nodeId, result, userInput) {
       return String(e.user_input_value).trim().toLowerCase() === normalizedInput;
     });
     if (byInput) return byInput;
+  }
+
+  // Priority 2: outcome-based routing (generic situations)
+  if (result?.outcome) {
+    const byOutcome = edges.find(e => e.outcome_name === result.outcome);
+    if (byOutcome) return byOutcome;
   }
 
   // Priority 3: default edge (no user_input_value, no outcome_name)
@@ -204,11 +204,9 @@ async function processUserInput(lead, userInput) {
       const canonicalValue = saveResult.value || userInput;
       console.log(`✅ Valid reply. Canonical: "${canonicalValue}"`);
 
-      // [PASS1] Check outcome-based edge first
+      // Specific input first, then outcome, then default
       let edge = await findNextEdge(currentNode.node_id, saveResult, canonicalValue);
 
-      // Fallback to input matching
-      if (!edge) edge = await findNextEdge(currentNode.node_id, null, canonicalValue);
       if (!edge && (String(userInput).startsWith('PROPERTY_') || String(userInput).startsWith('VISIT_'))) {
         edge = await findNextEdge(currentNode.node_id, null, null);
       }
