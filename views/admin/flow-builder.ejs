@@ -66,8 +66,10 @@
         </div>
       </div>
       <script>
-        window.__flowSteps = <% - JSON.stringify(steps) %>;
-        window.__flowMeta = <% - JSON.stringify(typeMeta) %>;
+        <script>
+          window.__flowSteps = JSON.parse(decodeURIComponent('<%= encodeURIComponent(JSON.stringify(steps)) %>'));
+          window.__flowMeta = JSON.parse(decodeURIComponent('<%= encodeURIComponent(JSON.stringify(typeMeta)) %>'));
+      </script>
       </script>
 
       <div id="sortable-steps" class="step-list">
@@ -572,585 +574,585 @@
 
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
   <script>
-    // ---- Toggles ----
-    function toggleNewFlow() {
+            // ---- Toggles ----
+            function toggleNewFlow() {
       const el = document.getElementById('new-flow-form');
-      el.style.display = el.style.display === 'none' ? 'flex' : 'none';
+            el.style.display = el.style.display === 'none' ? 'flex' : 'none';
     }
-    function toggleEdit(nodeId) {
+            function toggleEdit(nodeId) {
       const editor = document.getElementById('editor-' + nodeId);
-      editor.classList.toggle('open');
-      if (editor.classList.contains('open')) populateConditionDropdown(nodeId);
+            editor.classList.toggle('open');
+            if (editor.classList.contains('open')) populateConditionDropdown(nodeId);
     }
-    function toggleBlueprint() {
+            function toggleBlueprint() {
       const panel = document.getElementById('blueprint-panel');
-      panel.classList.toggle('active');
+            panel.classList.toggle('active');
       if (panel.classList.contains('active')) requestAnimationFrame(() => renderFlowBlueprint());
     }
 
-    // ---- Blueprint renderer ----
-    function renderFlowBlueprint() {
+            // ---- Blueprint renderer ----
+            function renderFlowBlueprint() {
       const canvas = document.getElementById('flow-canvas');
-      const nodeLayer = document.getElementById('flow-nodes');
-      const edgeLayer = document.getElementById('flow-edges');
-      const labelLayer = document.getElementById('flow-labels');
-      const steps = window.__flowSteps || [];
-      const typeMeta = window.__flowMeta || {};
-      if (!steps.length) return;
+            const nodeLayer = document.getElementById('flow-nodes');
+            const edgeLayer = document.getElementById('flow-edges');
+            const labelLayer = document.getElementById('flow-labels');
+            const steps = window.__flowSteps || [];
+            const typeMeta = window.__flowMeta || { };
+            if (!steps.length) return;
 
-      const colorMap = {
-        purple: { 50: '#faf5ff', 100: '#f3e8ff', 600: '#9333ea', 700: '#7e22ce' },
-        blue: { 50: '#eff6ff', 100: '#dbeafe', 600: '#2563eb', 700: '#1d4ed8' },
-        green: { 50: '#f0fdf4', 100: '#dcfce7', 600: '#16a34a', 700: '#15803d' },
-        indigo: { 50: '#eef2ff', 100: '#e0e7ff', 600: '#4f46e5', 700: '#4338ca' },
-        orange: { 50: '#fff7ed', 100: '#ffedd5', 600: '#ea580c', 700: '#c2410c' },
-        pink: { 50: '#fdf2f8', 100: '#fce7f3', 600: '#db2777', 700: '#be185d' },
-        teal: { 50: '#f0fdfa', 100: '#ccfbf1', 600: '#0d9488', 700: '#0f766e' },
-        red: { 50: '#fef2f2', 100: '#fee2e2', 600: '#dc2626', 700: '#b91c1c' },
-        gray: { 50: '#f9fafb', 100: '#f3f4f6', 600: '#4b5563', 700: '#374151' },
-        yellow: { 50: '#fefce8', 100: '#fef9c3', 600: '#ca8a04', 700: '#a16207' }
+            const colorMap = {
+              purple: {50: '#faf5ff', 100: '#f3e8ff', 600: '#9333ea', 700: '#7e22ce' },
+            blue: {50: '#eff6ff', 100: '#dbeafe', 600: '#2563eb', 700: '#1d4ed8' },
+            green: {50: '#f0fdf4', 100: '#dcfce7', 600: '#16a34a', 700: '#15803d' },
+            indigo: {50: '#eef2ff', 100: '#e0e7ff', 600: '#4f46e5', 700: '#4338ca' },
+            orange: {50: '#fff7ed', 100: '#ffedd5', 600: '#ea580c', 700: '#c2410c' },
+            pink: {50: '#fdf2f8', 100: '#fce7f3', 600: '#db2777', 700: '#be185d' },
+            teal: {50: '#f0fdfa', 100: '#ccfbf1', 600: '#0d9488', 700: '#0f766e' },
+            red: {50: '#fef2f2', 100: '#fee2e2', 600: '#dc2626', 700: '#b91c1c' },
+            gray: {50: '#f9fafb', 100: '#f3f4f6', 600: '#4b5563', 700: '#374151' },
+            yellow: {50: '#fefce8', 100: '#fef9c3', 600: '#ca8a04', 700: '#a16207' }
       };
 
-      nodeLayer.innerHTML = '';
-      edgeLayer.innerHTML = '';
-      labelLayer.innerHTML = '';
+            nodeLayer.innerHTML = '';
+            edgeLayer.innerHTML = '';
+            labelLayer.innerHTML = '';
 
-      const nodeMap = {};
-      const incoming = {};
+            const nodeMap = { };
+            const incoming = { };
       steps.forEach(s => {
-        nodeMap[s.node_id] = { ...s, x: 0, y: 0, level: 0 };
-        incoming[s.node_id] = [];
+              nodeMap[s.node_id] = { ...s, x: 0, y: 0, level: 0 };
+            incoming[s.node_id] = [];
       });
       steps.forEach(s => {
-        (s.connections || []).forEach(c => {
-          if (nodeMap[c.toNodeId]) incoming[c.toNodeId].push(s.node_id);
-        });
+              (s.connections || []).forEach(c => {
+                if (nodeMap[c.toNodeId]) incoming[c.toNodeId].push(s.node_id);
+              });
       });
 
       // BFS levels
       let roots = steps.filter(s => incoming[s.node_id].length === 0).map(s => s.node_id);
-      if (!roots.length) roots = [steps[0].node_id];
-      const queue = [...roots];
-      const visited = new Set(roots);
+            if (!roots.length) roots = [steps[0].node_id];
+            const queue = [...roots];
+            const visited = new Set(roots);
       roots.forEach(r => nodeMap[r].level = 0);
-      while (queue.length) {
+            while (queue.length) {
         const id = queue.shift();
-        const curr = nodeMap[id];
+            const curr = nodeMap[id];
         (curr.connections || []).forEach(c => {
           const t = nodeMap[c.toNodeId];
-          if (!t) return;
-          t.level = Math.max(t.level, curr.level + 1);
-          if (!visited.has(t.node_id)) { visited.add(t.node_id); queue.push(t.node_id); }
+            if (!t) return;
+            t.level = Math.max(t.level, curr.level + 1);
+            if (!visited.has(t.node_id)) {visited.add(t.node_id); queue.push(t.node_id); }
         });
       }
       steps.forEach(s => { if (!visited.has(s.node_id)) nodeMap[s.node_id].level = 0; });
 
-      const levels = {};
+            const levels = { };
       Object.values(nodeMap).forEach(n => {
         if (!levels[n.level]) levels[n.level] = [];
-        levels[n.level].push(n);
+            levels[n.level].push(n);
       });
 
-      const NODE_W = 260, NODE_H = 90, GAP_X = 140, GAP_Y = 150, PAD = 80;
-      const maxLevel = Math.max(...Object.keys(levels).map(Number));
-      const totalHeight = PAD * 2 + maxLevel * GAP_Y + NODE_H;
-      let maxLevelWidth = 0;
+            const NODE_W = 260, NODE_H = 90, GAP_X = 140, GAP_Y = 150, PAD = 80;
+            const maxLevel = Math.max(...Object.keys(levels).map(Number));
+            const totalHeight = PAD * 2 + maxLevel * GAP_Y + NODE_H;
+            let maxLevelWidth = 0;
       Object.values(levels).forEach(arr => {
         const w = arr.length * NODE_W + (arr.length - 1) * GAP_X;
         if (w > maxLevelWidth) maxLevelWidth = w;
       });
-      const totalWidth = Math.max(canvas.clientWidth || 800, maxLevelWidth + PAD * 2);
+            const totalWidth = Math.max(canvas.clientWidth || 800, maxLevelWidth + PAD * 2);
 
-      canvas.style.height = totalHeight + 'px';
-      canvas.style.width = totalWidth + 'px';
-      edgeLayer.style.width = totalWidth + 'px';
-      edgeLayer.style.height = totalHeight + 'px';
+            canvas.style.height = totalHeight + 'px';
+            canvas.style.width = totalWidth + 'px';
+            edgeLayer.style.width = totalWidth + 'px';
+            edgeLayer.style.height = totalHeight + 'px';
 
       Object.keys(levels).forEach(lvl => {
         const arr = levels[lvl];
-        const lw = arr.length * NODE_W + (arr.length - 1) * GAP_X;
-        let startX = (totalWidth - lw) / 2;
-        arr.forEach((n, i) => { n.x = startX + i * (NODE_W + GAP_X); n.y = PAD + lvl * GAP_Y; });
+            const lw = arr.length * NODE_W + (arr.length - 1) * GAP_X;
+            let startX = (totalWidth - lw) / 2;
+        arr.forEach((n, i) => {n.x = startX + i * (NODE_W + GAP_X); n.y = PAD + lvl * GAP_Y; });
       });
 
-      const svgNS = 'http://www.w3.org/2000/svg';
-      const labelsToRender = [];
+            const svgNS = 'http://www.w3.org/2000/svg';
+            const labelsToRender = [];
 
       // Draw edges
       Object.values(nodeMap).forEach(n => {
-        (n.connections || []).forEach(conn => {
-          const t = nodeMap[conn.toNodeId];
-          if (!t) return;
-          const x1 = n.x + NODE_W / 2, y1 = n.y + NODE_H;
-          const x2 = t.x + NODE_W / 2, y2 = t.y;
-          const c1y = y1 + GAP_Y * 0.45, c2y = y2 - GAP_Y * 0.45;
+              (n.connections || []).forEach(conn => {
+                const t = nodeMap[conn.toNodeId];
+                if (!t) return;
+                const x1 = n.x + NODE_W / 2, y1 = n.y + NODE_H;
+                const x2 = t.x + NODE_W / 2, y2 = t.y;
+                const c1y = y1 + GAP_Y * 0.45, c2y = y2 - GAP_Y * 0.45;
 
-          const gradId = 'grad-' + n.node_id + '-' + t.node_id;
-          const grad = document.createElementNS(svgNS, 'linearGradient');
-          grad.setAttribute('id', gradId);
-          grad.setAttribute('x1', '0%'); grad.setAttribute('y1', '0%');
-          grad.setAttribute('x2', '0%'); grad.setAttribute('y2', '100%');
-          const s1 = document.createElementNS(svgNS, 'stop');
-          s1.setAttribute('offset', '0%'); s1.setAttribute('stop-color', '#cbd5e1');
-          const s2 = document.createElementNS(svgNS, 'stop');
-          s2.setAttribute('offset', '100%'); s2.setAttribute('stop-color', '#94a3b8');
-          grad.appendChild(s1); grad.appendChild(s2);
-          edgeLayer.appendChild(grad);
+                const gradId = 'grad-' + n.node_id + '-' + t.node_id;
+                const grad = document.createElementNS(svgNS, 'linearGradient');
+                grad.setAttribute('id', gradId);
+                grad.setAttribute('x1', '0%'); grad.setAttribute('y1', '0%');
+                grad.setAttribute('x2', '0%'); grad.setAttribute('y2', '100%');
+                const s1 = document.createElementNS(svgNS, 'stop');
+                s1.setAttribute('offset', '0%'); s1.setAttribute('stop-color', '#cbd5e1');
+                const s2 = document.createElementNS(svgNS, 'stop');
+                s2.setAttribute('offset', '100%'); s2.setAttribute('stop-color', '#94a3b8');
+                grad.appendChild(s1); grad.appendChild(s2);
+                edgeLayer.appendChild(grad);
 
-          const path = document.createElementNS(svgNS, 'path');
-          path.setAttribute('d', `M ${x1} ${y1} C ${x1} ${c1y}, ${x2} ${c2y}, ${x2} ${y2}`);
-          path.setAttribute('fill', 'none');
-          path.setAttribute('stroke', `url(#${gradId})`);
-          path.setAttribute('stroke-width', '2.5');
-          path.setAttribute('stroke-linecap', 'round');
-          path.setAttribute('stroke-dasharray', '8 6');
+                const path = document.createElementNS(svgNS, 'path');
+                path.setAttribute('d', `M ${x1} ${y1} C ${x1} ${c1y}, ${x2} ${c2y}, ${x2} ${y2}`);
+                path.setAttribute('fill', 'none');
+                path.setAttribute('stroke', `url(#${gradId})`);
+                path.setAttribute('stroke-width', '2.5');
+                path.setAttribute('stroke-linecap', 'round');
+                path.setAttribute('stroke-dasharray', '8 6');
 
-          const anim = document.createElementNS(svgNS, 'animate');
-          anim.setAttribute('attributeName', 'stroke-dashoffset');
-          anim.setAttribute('from', '14'); anim.setAttribute('to', '0');
-          anim.setAttribute('dur', '1.2s'); anim.setAttribute('repeatCount', 'indefinite');
-          path.appendChild(anim);
-          edgeLayer.appendChild(path);
+                const anim = document.createElementNS(svgNS, 'animate');
+                anim.setAttribute('attributeName', 'stroke-dashoffset');
+                anim.setAttribute('from', '14'); anim.setAttribute('to', '0');
+                anim.setAttribute('dur', '1.2s'); anim.setAttribute('repeatCount', 'indefinite');
+                path.appendChild(anim);
+                edgeLayer.appendChild(path);
 
-          const arrow = document.createElementNS(svgNS, 'polygon');
-          arrow.setAttribute('points', `${x2 - 5},${y2 - 6} ${x2 + 5},${y2 - 6} ${x2},${y2}`);
-          arrow.setAttribute('fill', '#94a3b8');
-          edgeLayer.appendChild(arrow);
+                const arrow = document.createElementNS(svgNS, 'polygon');
+                arrow.setAttribute('points', `${x2 - 5},${y2 - 6} ${x2 + 5},${y2 - 6} ${x2},${y2}`);
+                arrow.setAttribute('fill', '#94a3b8');
+                edgeLayer.appendChild(arrow);
 
-          if (conn.userInput) {
-            const midX = 0.5 * (x1 + x2);
-            const midY = 0.125 * y1 + 0.375 * c1y + 0.375 * c2y + 0.125 * y2;
-            labelsToRender.push({ x: midX, y: midY, text: String(conn.userInput) });
-          }
-        });
+                if (conn.userInput) {
+                  const midX = 0.5 * (x1 + x2);
+                  const midY = 0.125 * y1 + 0.375 * c1y + 0.375 * c2y + 0.125 * y2;
+                  labelsToRender.push({ x: midX, y: midY, text: String(conn.userInput) });
+                }
+              });
       });
 
       // Draw nodes
       Object.values(nodeMap).forEach((n, idx) => {
         const meta = typeMeta[n.node_type] || typeMeta.send_message;
-        const c = colorMap[meta.color] || colorMap.blue;
-        const wrap = document.createElement('div');
-        wrap.style.cssText = `position:absolute; left:${n.x}px; top:${n.y}px; width:${NODE_W}px; height:${NODE_H}px;`;
-        wrap.innerHTML = `
-        <div class="bp-node" style="width:100%; height:100%; background:white; border-radius:16px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05), 0 12px 24px -4px rgba(0,0,0,0.04); border:1px solid ${c[100]}; display:flex; align-items:center; gap:12px; padding:0 16px; cursor:default; transition:all 0.3s; position:relative; overflow:hidden; opacity:0; transform:translateY(12px);">
-          <div style="position:absolute; left:0; top:0; bottom:0; width:4px; background:linear-gradient(180deg, ${c[600]}, ${c[700]});"></div>
-          <div style="width:40px; height:40px; border-radius:10px; background:${c[50]}; color:${c[600]}; display:flex; align-items:center; justify-content:center; font-size:1.2rem; border:1px solid ${c[100]}; flex-shrink:0;">${meta.icon}</div>
-          <div style="min-width:0; flex:1;">
-            <div style="font-weight:700; font-size:0.9rem; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${n.node_name || 'Untitled'}</div>
-            <div style="font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:${c[700]}; margin-top:3px;">${meta.label}</div>
-          </div>
-        </div>`;
-        const card = wrap.querySelector('.bp-node');
-        setTimeout(() => { card.style.opacity = '1'; card.style.transform = 'translateY(0)'; }, idx * 60);
+            const c = colorMap[meta.color] || colorMap.blue;
+            const wrap = document.createElement('div');
+            wrap.style.cssText = `position:absolute; left:${n.x}px; top:${n.y}px; width:${NODE_W}px; height:${NODE_H}px;`;
+            wrap.innerHTML = `
+            <div class="bp-node" style="width:100%; height:100%; background:white; border-radius:16px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05), 0 12px 24px -4px rgba(0,0,0,0.04); border:1px solid ${c[100]}; display:flex; align-items:center; gap:12px; padding:0 16px; cursor:default; transition:all 0.3s; position:relative; overflow:hidden; opacity:0; transform:translateY(12px);">
+              <div style="position:absolute; left:0; top:0; bottom:0; width:4px; background:linear-gradient(180deg, ${c[600]}, ${c[700]});"></div>
+              <div style="width:40px; height:40px; border-radius:10px; background:${c[50]}; color:${c[600]}; display:flex; align-items:center; justify-content:center; font-size:1.2rem; border:1px solid ${c[100]}; flex-shrink:0;">${meta.icon}</div>
+              <div style="min-width:0; flex:1;">
+                <div style="font-weight:700; font-size:0.9rem; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${n.node_name || 'Untitled'}</div>
+                <div style="font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:${c[700]}; margin-top:3px;">${meta.label}</div>
+              </div>
+            </div>`;
+            const card = wrap.querySelector('.bp-node');
+        setTimeout(() => {card.style.opacity = '1'; card.style.transform = 'translateY(0)'; }, idx * 60);
         card.addEventListener('mouseenter', () => {
-          card.style.transform = 'translateY(-4px) scale(1.02)';
-          card.style.boxShadow = `0 20px 32px -8px rgba(0,0,0,0.12), 0 0 0 3px ${c[50]}`;
-          card.style.borderColor = c[600];
+              card.style.transform = 'translateY(-4px) scale(1.02)';
+            card.style.boxShadow = `0 20px 32px -8px rgba(0,0,0,0.12), 0 0 0 3px ${c[50]}`;
+            card.style.borderColor = c[600];
         });
         card.addEventListener('mouseleave', () => {
-          card.style.transform = 'translateY(0) scale(1)';
-          card.style.boxShadow = '0 4px 6px -1px rgba(0,0,0,0.05), 0 12px 24px -4px rgba(0,0,0,0.04)';
-          card.style.borderColor = c[100];
+              card.style.transform = 'translateY(0) scale(1)';
+            card.style.boxShadow = '0 4px 6px -1px rgba(0,0,0,0.05), 0 12px 24px -4px rgba(0,0,0,0.04)';
+            card.style.borderColor = c[100];
         });
-        nodeLayer.appendChild(wrap);
+            nodeLayer.appendChild(wrap);
       });
 
       // Draw labels on top
       labelsToRender.forEach(lbl => {
         const pill = document.createElement('div');
-        pill.style.cssText = `position:absolute; left:${lbl.x}px; top:${lbl.y}px; transform:translate(-50%,-50%); background:#fff; border:1px solid #e2e8f0; border-radius:9999px; padding:2px 10px; font-size:11px; font-weight:600; color:#475569; box-shadow:0 2px 6px rgba(0,0,0,0.06); white-space:nowrap; z-index:2; pointer-events:none;`;
-        pill.textContent = lbl.text;
-        labelLayer.appendChild(pill);
+            pill.style.cssText = `position:absolute; left:${lbl.x}px; top:${lbl.y}px; transform:translate(-50%,-50%); background:#fff; border:1px solid #e2e8f0; border-radius:9999px; padding:2px 10px; font-size:11px; font-weight:600; color:#475569; box-shadow:0 2px 6px rgba(0,0,0,0.06); white-space:nowrap; z-index:2; pointer-events:none;`;
+            pill.textContent = lbl.text;
+            labelLayer.appendChild(pill);
       });
     }
 
-    // ---- Option helpers ----
-    function addSimpleOptionRow(nodeId) {
+            // ---- Option helpers ----
+            function addSimpleOptionRow(nodeId) {
       const list = document.getElementById('options-list-' + nodeId);
-      const row = document.createElement('div');
-      row.className = 'option-row';
-      row.innerHTML = '<input type="text" placeholder="Option" class="opt-label"><span class="remove-btn" onclick="this.parentElement.remove()">✕</span>';
-      list.appendChild(row);
+            const row = document.createElement('div');
+            row.className = 'option-row';
+            row.innerHTML = '<input type="text" placeholder="Option" class="opt-label"><span class="remove-btn" onclick="this.parentElement.remove()">✕</span>';
+              list.appendChild(row);
     }
-    function addWelcomeButtonRow(nodeId) {
+              function addWelcomeButtonRow(nodeId) {
       const list = document.getElementById('options-list-' + nodeId);
-      const row = document.createElement('div');
-      row.className = 'option-row';
-      row.innerHTML = '<input type="text" placeholder="Title" class="opt-label" style="flex:2;"><select class="opt-action" style="flex:1;"><option value="BROCHURE">BROCHURE</option><option value="VISIT">VISIT</option><option value="CALL">CALL</option><option value="BUY">BUY</option><option value="RENT">RENT</option></select><span class="remove-btn" onclick="this.parentElement.remove()">✕</span>';
-      list.appendChild(row);
+              const row = document.createElement('div');
+              row.className = 'option-row';
+              row.innerHTML = '<input type="text" placeholder="Title" class="opt-label" style="flex:2;"><select class="opt-action" style="flex:1;"><option value="BROCHURE">BROCHURE</option><option value="VISIT">VISIT</option><option value="CALL">CALL</option><option value="BUY">BUY</option><option value="RENT">RENT</option></select><span class="remove-btn" onclick="this.parentElement.remove()">✕</span>';
+                list.appendChild(row);
     }
-    function addCollectInputOptionRow(nodeId) {
+                function addCollectInputOptionRow(nodeId) {
       const list = document.getElementById('options-list-' + nodeId);
-      const row = document.createElement('div');
-      row.className = 'option-row';
-      row.innerHTML = '<input type="text" placeholder="Label" class="opt-label" style="flex:2;"><select class="opt-value-select" style="flex:2;" onchange="toggleCustomValue(this)"><option value="">-- ID --</option><option value="1BHK">1BHK</option><option value="2BHK">2BHK</option><option value="3BHK">3BHK</option><option value="4BHK">4BHK</option><option value="5BHK">5BHK</option><option value="STUDIO">STUDIO</option><option value="SELF_USE">SELF_USE</option><option value="INVESTMENT">INVESTMENT</option><option value="BUY">BUY</option><option value="RENT">RENT</option><option value="READY_TO_MOVE">Ready</option><option value="UNDER_CONSTRUCTION">Under</option><option value="__custom__">Custom</option></select><input type="text" placeholder="Custom" class="opt-value-custom" style="flex:2; display:none;"><span class="remove-btn" onclick="this.parentElement.remove()">✕</span>';
-      list.appendChild(row);
+                const row = document.createElement('div');
+                row.className = 'option-row';
+                row.innerHTML = '<input type="text" placeholder="Label" class="opt-label" style="flex:2;"><select class="opt-value-select" style="flex:2;" onchange="toggleCustomValue(this)"><option value="">-- ID --</option><option value="1BHK">1BHK</option><option value="2BHK">2BHK</option><option value="3BHK">3BHK</option><option value="4BHK">4BHK</option><option value="5BHK">5BHK</option><option value="STUDIO">STUDIO</option><option value="SELF_USE">SELF_USE</option><option value="INVESTMENT">INVESTMENT</option><option value="BUY">BUY</option><option value="RENT">RENT</option><option value="READY_TO_MOVE">Ready</option><option value="UNDER_CONSTRUCTION">Under</option><option value="__custom__">Custom</option></select><input type="text" placeholder="Custom" class="opt-value-custom" style="flex:2; display:none;"><span class="remove-btn" onclick="this.parentElement.remove()">✕</span>';
+                  list.appendChild(row);
     }
-    function toggleCustomValue(select) {
+                  function toggleCustomValue(select) {
       const row = select.parentElement;
-      const custom = row.querySelector('.opt-value-custom');
-      if (select.value === '__custom__') { custom.style.display = ''; custom.focus(); }
-      else { custom.style.display = 'none'; custom.value = ''; }
+                  const custom = row.querySelector('.opt-value-custom');
+                  if (select.value === '__custom__') {custom.style.display = ''; custom.focus(); }
+                  else {custom.style.display = 'none'; custom.value = ''; }
     }
-    function toggleCustomSaveField(nodeId) {
+                  function toggleCustomSaveField(nodeId) {
       const select = document.getElementById('save-field-select-' + nodeId);
-      const custom = document.getElementById('save-field-custom-' + nodeId);
-      if (!select || !custom) return;
-      if (select.value === '__custom__') { custom.style.display = ''; custom.focus(); }
-      else { custom.style.display = 'none'; custom.value = ''; }
+                  const custom = document.getElementById('save-field-custom-' + nodeId);
+                  if (!select || !custom) return;
+                  if (select.value === '__custom__') {custom.style.display = ''; custom.focus(); }
+                  else {custom.style.display = 'none'; custom.value = ''; }
     }
-    function addMediaRow(nodeId) {
+                  function addMediaRow(nodeId) {
       const list = document.getElementById('media-list-' + nodeId);
-      const row = document.createElement('div');
-      row.className = 'media-row';
-      row.innerHTML = '<select class="media-type"><option value="image">Image</option><option value="video">Video</option><option value="document">Doc</option></select><input type="url" placeholder="URL" class="media-url"><input type="text" placeholder="Caption" class="media-caption"><input type="text" placeholder="Filename" class="media-filename"><span class="remove-btn" onclick="this.parentElement.remove()">✕</span>';
-      list.appendChild(row);
+                  const row = document.createElement('div');
+                  row.className = 'media-row';
+                  row.innerHTML = '<select class="media-type"><option value="image">Image</option><option value="video">Video</option><option value="document">Doc</option></select><input type="url" placeholder="URL" class="media-url"><input type="text" placeholder="Caption" class="media-caption"><input type="text" placeholder="Filename" class="media-filename"><span class="remove-btn" onclick="this.parentElement.remove()">✕</span>';
+                    list.appendChild(row);
     }
 
-    // ---- Form preparation ----
-    function prepareStepForm(nodeId) {
+                    // ---- Form preparation ----
+                    function prepareStepForm(nodeId) {
       const form = document.querySelector(`#editor-${nodeId} form`);
-      if (!form) return true;
+                    if (!form) return true;
 
-      const saveSelect = document.getElementById('save-field-select-' + nodeId);
-      const saveCustom = document.getElementById('save-field-custom-' + nodeId);
-      if (saveSelect && saveCustom && saveSelect.value === '__custom__') {
-        saveSelect.value = saveCustom.value.trim();
+                    const saveSelect = document.getElementById('save-field-select-' + nodeId);
+                    const saveCustom = document.getElementById('save-field-custom-' + nodeId);
+                    if (saveSelect && saveCustom && saveSelect.value === '__custom__') {
+                      saveSelect.value = saveCustom.value.trim();
       }
 
-      const optionsList = document.getElementById('options-list-' + nodeId);
-      if (optionsList) {
+                    const optionsList = document.getElementById('options-list-' + nodeId);
+                    if (optionsList) {
         const stepRow = document.querySelector(`.step-card[data-node-id="${nodeId}"]`);
-        const stepType = stepRow ? stepRow.dataset.stepType : '';
-        const rows = optionsList.querySelectorAll('.option-row');
-        let lines = [];
+                    const stepType = stepRow ? stepRow.dataset.stepType : '';
+                    const rows = optionsList.querySelectorAll('.option-row');
+                    let lines = [];
         rows.forEach(row => {
           if (stepType === 'collect_input') {
             const labelInput = row.querySelector('.opt-label');
-            const selectEl = row.querySelector('.opt-value-select');
-            const customInput = row.querySelector('.opt-value-custom');
-            let value = selectEl.value === '__custom__' ? customInput.value.trim() : selectEl.value;
-            if (labelInput && labelInput.value.trim()) {
-              lines.push(labelInput.value.trim() + ' : ' + (value || labelInput.value.trim()));
+                    const selectEl = row.querySelector('.opt-value-select');
+                    const customInput = row.querySelector('.opt-value-custom');
+                    let value = selectEl.value === '__custom__' ? customInput.value.trim() : selectEl.value;
+                    if (labelInput && labelInput.value.trim()) {
+                      lines.push(labelInput.value.trim() + ' : ' + (value || labelInput.value.trim()));
             }
           } else if (stepType === 'property_welcome') {
             const labelInput = row.querySelector('.opt-label');
-            const actionSelect = row.querySelector('.opt-action');
-            if (labelInput && labelInput.value.trim()) {
-              lines.push(labelInput.value.trim() + ' : ' + (actionSelect ? actionSelect.value : 'BROCHURE'));
+                    const actionSelect = row.querySelector('.opt-action');
+                    if (labelInput && labelInput.value.trim()) {
+                      lines.push(labelInput.value.trim() + ' : ' + (actionSelect ? actionSelect.value : 'BROCHURE'));
             }
           } else {
             const labelInput = row.querySelector('.opt-label');
-            if (labelInput && labelInput.value.trim()) lines.push(labelInput.value.trim());
+                    if (labelInput && labelInput.value.trim()) lines.push(labelInput.value.trim());
           }
         });
 
-        let hiddenOpt = form.querySelector('input[name="options"]');
-        if (!hiddenOpt) {
-          hiddenOpt = document.createElement('input');
-          hiddenOpt.type = 'hidden'; hiddenOpt.name = 'options';
-          form.appendChild(hiddenOpt);
+                    let hiddenOpt = form.querySelector('input[name="options"]');
+                    if (!hiddenOpt) {
+                      hiddenOpt = document.createElement('input');
+                    hiddenOpt.type = 'hidden'; hiddenOpt.name = 'options';
+                    form.appendChild(hiddenOpt);
         }
-        hiddenOpt.value = lines.join('\n');
+                    hiddenOpt.value = lines.join('\n');
       }
 
-      const mediaList = document.getElementById('media-list-' + nodeId);
-      if (mediaList) {
+                    const mediaList = document.getElementById('media-list-' + nodeId);
+                    if (mediaList) {
         const rows = mediaList.querySelectorAll('.media-row');
-        const items = [];
+                    const items = [];
         rows.forEach(row => {
           const type = row.querySelector('.media-type').value;
-          const url = row.querySelector('.media-url').value.trim();
-          if (!url) return;
-          const caption = row.querySelector('.media-caption').value.trim();
-          const filename = row.querySelector('.media-filename').value.trim();
-          items.push({ type, url, caption, filename: filename || 'document' });
+                    const url = row.querySelector('.media-url').value.trim();
+                    if (!url) return;
+                    const caption = row.querySelector('.media-caption').value.trim();
+                    const filename = row.querySelector('.media-filename').value.trim();
+                    items.push({type, url, caption, filename: filename || 'document' });
         });
-        let hiddenMedia = form.querySelector('input[name="media_items_json"]');
-        if (!hiddenMedia) {
-          hiddenMedia = document.createElement('input');
-          hiddenMedia.type = 'hidden'; hiddenMedia.name = 'media_items_json';
-          form.appendChild(hiddenMedia);
+                    let hiddenMedia = form.querySelector('input[name="media_items_json"]');
+                    if (!hiddenMedia) {
+                      hiddenMedia = document.createElement('input');
+                    hiddenMedia.type = 'hidden'; hiddenMedia.name = 'media_items_json';
+                    form.appendChild(hiddenMedia);
         }
-        hiddenMedia.value = JSON.stringify(items);
+                    hiddenMedia.value = JSON.stringify(items);
       }
-      return true;
+                    return true;
     }
 
-    // ---- Condition dropdown ----
-    function populateConditionDropdown(nodeId) {
+                    // ---- Condition dropdown ----
+                    function populateConditionDropdown(nodeId) {
       const stepRow = document.querySelector(`.step-card[data-node-id="${nodeId}"]`);
-      if (!stepRow) return;
-      const stepType = stepRow.dataset.stepType;
-      const selectEl = stepRow.querySelector('.conn-condition');
-      if (!selectEl) return;
+                    if (!stepRow) return;
+                    const stepType = stepRow.dataset.stepType;
+                    const selectEl = stepRow.querySelector('.conn-condition');
+                    if (!selectEl) return;
 
       while (selectEl.options.length > 1) selectEl.remove(1);
 
-      if (stepType === 'collect_input') {
+                    if (stepType === 'collect_input') {
         const optionsList = document.getElementById('options-list-' + nodeId);
-        if (optionsList) {
-          optionsList.querySelectorAll('.option-row').forEach(row => {
-            const selectOpt = row.querySelector('.opt-value-select');
-            const customInput = row.querySelector('.opt-value-custom');
-            let value = selectOpt.value === '__custom__' ? customInput.value.trim() : selectOpt.value;
-            if (value) {
-              const option = document.createElement('option');
-              option.value = value; option.textContent = value;
-              selectEl.appendChild(option);
-            }
-          });
+                    if (optionsList) {
+                      optionsList.querySelectorAll('.option-row').forEach(row => {
+                        const selectOpt = row.querySelector('.opt-value-select');
+                        const customInput = row.querySelector('.opt-value-custom');
+                        let value = selectOpt.value === '__custom__' ? customInput.value.trim() : selectOpt.value;
+                        if (value) {
+                          const option = document.createElement('option');
+                          option.value = value; option.textContent = value;
+                          selectEl.appendChild(option);
+                        }
+                      });
         }
       } else if (stepType === 'property_welcome') {
-        ['BROCHURE', 'VISIT', 'CALL', 'BUY', 'RENT'].forEach(id => {
-          const option = document.createElement('option');
-          option.value = id; option.textContent = id;
-          selectEl.appendChild(option);
-        });
+                      ['BROCHURE', 'VISIT', 'CALL', 'BUY', 'RENT'].forEach(id => {
+                        const option = document.createElement('option');
+                        option.value = id; option.textContent = id;
+                        selectEl.appendChild(option);
+                      });
       }
     }
 
-    function toggleMatchBox(nodeId) {
+                    function toggleMatchBox(nodeId) {
       const box = document.getElementById('match-dimensions-' + nodeId);
-      const radio = document.querySelector(`#editor-${nodeId} input[name="list-mode"][value="filtered"]`);
-      if (box) box.style.display = radio && radio.checked ? '' : 'none';
+                    const radio = document.querySelector(`#editor-${nodeId} input[name="list-mode"][value="filtered"]`);
+                    if (box) box.style.display = radio && radio.checked ? '' : 'none';
     }
-    function toggleSlotSource(nodeId) {
+                    function toggleSlotSource(nodeId) {
       const radio = document.querySelector(`input[name="slot_source_${nodeId}"]:checked`);
-      const predefinedDiv = document.getElementById('predefined-slots-' + nodeId);
-      if (!radio || !predefinedDiv) return;
-      predefinedDiv.style.display = radio.value === 'predefined' ? '' : 'none';
-      if (radio.value !== 'predefined') {
+                    const predefinedDiv = document.getElementById('predefined-slots-' + nodeId);
+                    if (!radio || !predefinedDiv) return;
+                    predefinedDiv.style.display = radio.value === 'predefined' ? '' : 'none';
+                    if (radio.value !== 'predefined') {
         const form = document.querySelector(`#editor-${nodeId} form`);
-        if (form) {
-          let hiddenOpt = form.querySelector('input[name="options"]');
-          if (!hiddenOpt) { hiddenOpt = document.createElement('input'); hiddenOpt.type = 'hidden'; hiddenOpt.name = 'options'; form.appendChild(hiddenOpt); }
-          hiddenOpt.value = '';
+                    if (form) {
+                      let hiddenOpt = form.querySelector('input[name="options"]');
+                    if (!hiddenOpt) {hiddenOpt = document.createElement('input'); hiddenOpt.type = 'hidden'; hiddenOpt.name = 'options'; form.appendChild(hiddenOpt); }
+                    hiddenOpt.value = '';
         }
       }
     }
 
-    // ---- Sortable ----
-    document.addEventListener('DOMContentLoaded', function () {
+                    // ---- Sortable ----
+                    document.addEventListener('DOMContentLoaded', function () {
       const el = document.getElementById('sortable-steps');
-      if (!el) return;
-      new Sortable(el, {
-        handle: '.step-drag',
-        animation: 150,
-        ghostClass: 'sortable-ghost',
-        onEnd: async function () {
+                    if (!el) return;
+                    new Sortable(el, {
+                      handle: '.step-drag',
+                    animation: 150,
+                    ghostClass: 'sortable-ghost',
+                    onEnd: async function () {
           const nodeIds = Array.from(el.querySelectorAll('.step-card')).map(c => c.dataset.nodeId);
-          await fetch('/admin/flows/reorder?clientId=' + clientId, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ flowId: window.__activeFlow ? window.__activeFlow.flow_id : null, nodeIds })
+                    await fetch('/admin/flows/reorder?clientId=' + clientId, {
+                      method: 'POST',
+                    headers: {'Content-Type': 'application/json' },
+                    body: JSON.stringify({flowId: window.__activeFlow ? window.__activeFlow.flow_id : null, nodeIds })
           });
-          window.location.reload();
+                    window.location.reload();
         }
       });
     });
 
-    function toggleDocSource(nodeId) {
+                    function toggleDocSource(nodeId) {
       const select = document.querySelector(`#editor-${nodeId} select[name="source"]`);
-      const propDiv = document.getElementById('doc-property-opts-' + nodeId);
-      const staticDiv = document.getElementById('doc-static-opts-' + nodeId);
-      if (!select || !propDiv || !staticDiv) return;
+                    const propDiv = document.getElementById('doc-property-opts-' + nodeId);
+                    const staticDiv = document.getElementById('doc-static-opts-' + nodeId);
+                    if (!select || !propDiv || !staticDiv) return;
 
-      if (select.value === 'property') {
-        propDiv.style.display = '';
-        staticDiv.style.display = 'none';
+                    if (select.value === 'property') {
+                      propDiv.style.display = '';
+                    staticDiv.style.display = 'none';
       } else if (select.value === 'static') {
-        propDiv.style.display = 'none';
-        staticDiv.style.display = '';
+                      propDiv.style.display = 'none';
+                    staticDiv.style.display = '';
       } else {
-        propDiv.style.display = '';
-        staticDiv.style.display = '';
+                      propDiv.style.display = '';
+                    staticDiv.style.display = '';
       }
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // TOAST SYSTEM
-    // ═══════════════════════════════════════════════════════════════
-    function showToast(message, type = 'info') {
+                    // ═══════════════════════════════════════════════════════════════
+                    // TOAST SYSTEM
+                    // ═══════════════════════════════════════════════════════════════
+                    function showToast(message, type = 'info') {
       const container = document.getElementById('toast-container');
-      if (!container) return;
-      const toast = document.createElement('div');
-      toast.className = `toast toast--${type}`;
-      const icons = { success: '✅', error: '❌', info: 'ℹ️' };
-      toast.innerHTML = `
-        <span class="toast__icon">${icons[type] || icons.info}</span>
-        <span>${message}</span>
-        <button class="toast__close" onclick="this.parentElement.remove()">✕</button>
-      `;
-      container.appendChild(toast);
+                    if (!container) return;
+                    const toast = document.createElement('div');
+                    toast.className = `toast toast--${type}`;
+                    const icons = {success: '✅', error: '❌', info: 'ℹ️' };
+                    toast.innerHTML = `
+                    <span class="toast__icon">${icons[type] || icons.info}</span>
+                    <span>${message}</span>
+                    <button class="toast__close" onclick="this.parentElement.remove()">✕</button>
+                    `;
+                    container.appendChild(toast);
       setTimeout(() => {
-        toast.style.animation = 'toastOut 0.4s var(--ease-spring) forwards';
+                      toast.style.animation = 'toastOut 0.4s var(--ease-spring) forwards';
         setTimeout(() => toast.remove(), 400);
       }, 3500);
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // AJAX FORM INTERCEPTOR (no reload for deletes, smooth for rest)
-    // ═══════════════════════════════════════════════════════════════
-    function initAjaxForms() {
-      document.querySelectorAll('.flow-builder-wrap form').forEach(form => {
-        if (form.dataset.ajaxBound) return;
-        form.dataset.ajaxBound = '1';
+                    // ═══════════════════════════════════════════════════════════════
+                    // AJAX FORM INTERCEPTOR (no reload for deletes, smooth for rest)
+                    // ═══════════════════════════════════════════════════════════════
+                    function initAjaxForms() {
+                      document.querySelectorAll('.flow-builder-wrap form').forEach(form => {
+                        if (form.dataset.ajaxBound) return;
+                        form.dataset.ajaxBound = '1';
 
-        form.addEventListener('submit', async (e) => {
-          if (form.classList.contains('conn-edit-form')) return;
-          e.preventDefault();
+                        form.addEventListener('submit', async (e) => {
+                          if (form.classList.contains('conn-edit-form')) return;
+                          e.preventDefault();
 
-          const btn = form.querySelector('button[type="submit"]');
-          if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+                          const btn = form.querySelector('button[type="submit"]');
+                          if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
 
-          try {
-            const res = await fetch(form.action, {
-              method: form.method || 'POST',
-              headers: { 'Accept': 'application/json' },
-              body: new FormData(form)
-            });
-            const data = await res.json();
+                          try {
+                            const res = await fetch(form.action, {
+                              method: form.method || 'POST',
+                              headers: { 'Accept': 'application/json' },
+                              body: new FormData(form)
+                            });
+                            const data = await res.json();
 
-            if (data.success) {
-              showToast('Saved successfully', 'success');
+                            if (data.success) {
+                              showToast('Saved successfully', 'success');
 
-              // Connection delete: fade out and remove tag
-              if (form.classList.contains('conn-delete-form')) {
-                const tag = form.closest('.conn-tag');
-                if (tag) {
-                  tag.style.transition = 'all 0.3s ease';
-                  tag.style.opacity = '0'; tag.style.transform = 'scale(0.9)';
-                  setTimeout(() => tag.remove(), 300);
-                }
-                return;
-              }
+                              // Connection delete: fade out and remove tag
+                              if (form.classList.contains('conn-delete-form')) {
+                                const tag = form.closest('.conn-tag');
+                                if (tag) {
+                                  tag.style.transition = 'all 0.3s ease';
+                                  tag.style.opacity = '0'; tag.style.transform = 'scale(0.9)';
+                                  setTimeout(() => tag.remove(), 300);
+                                }
+                                return;
+                              }
 
-              // Step delete: slide out and remove card
-              if (form.action.includes('/steps/') && form.action.includes('/delete')) {
-                const card = form.closest('.step-card');
-                if (card) {
-                  card.style.transition = 'all 0.35s ease';
-                  card.style.opacity = '0'; card.style.transform = 'translateX(-20px)';
-                  setTimeout(() => card.remove(), 350);
-                }
-                return;
-              }
+                              // Step delete: slide out and remove card
+                              if (form.action.includes('/steps/') && form.action.includes('/delete')) {
+                                const card = form.closest('.step-card');
+                                if (card) {
+                                  card.style.transition = 'all 0.35s ease';
+                                  card.style.opacity = '0'; card.style.transform = 'translateX(-20px)';
+                                  setTimeout(() => card.remove(), 350);
+                                }
+                                return;
+                              }
 
-              // Everything else: smooth background refresh without scroll jump
-              setTimeout(() => window.location.reload(), 600);
-            } else {
-              showToast(data.error || 'Something went wrong', 'error');
-              if (btn) { btn.disabled = false; btn.style.opacity = ''; }
-            }
-          } catch (err) {
-            showToast(err.message || 'Network error', 'error');
-            if (btn) { btn.disabled = false; btn.style.opacity = ''; }
-          }
-        });
-      });
+                              // Everything else: smooth background refresh without scroll jump
+                              setTimeout(() => window.location.reload(), 600);
+                            } else {
+                              showToast(data.error || 'Something went wrong', 'error');
+                              if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+                            }
+                          } catch (err) {
+                            showToast(err.message || 'Network error', 'error');
+                            if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+                          }
+                        });
+                      });
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // CONNECTION INLINE EDIT
-    // ═══════════════════════════════════════════════════════════════
-    function editConnection(edgeId) {
+                    // ═══════════════════════════════════════════════════════════════
+                    // CONNECTION INLINE EDIT
+                    // ═══════════════════════════════════════════════════════════════
+                    function editConnection(edgeId) {
       const tag = document.querySelector(`.conn-tag[data-edge-id="${edgeId}"]`);
-      if (!tag) return;
-      tag.classList.add('is-editing');
-      const stepCard = tag.closest('.step-card');
-      if (stepCard) populateConditionDropdown(parseInt(stepCard.dataset.nodeId));
+                    if (!tag) return;
+                    tag.classList.add('is-editing');
+                    const stepCard = tag.closest('.step-card');
+                    if (stepCard) populateConditionDropdown(parseInt(stepCard.dataset.nodeId));
     }
 
-    function cancelEditConnection(edgeId) {
+                    function cancelEditConnection(edgeId) {
       const tag = document.querySelector(`.conn-tag[data-edge-id="${edgeId}"]`);
-      if (tag) tag.classList.remove('is-editing');
+                    if (tag) tag.classList.remove('is-editing');
     }
 
-    async function saveConnectionEdit(e, edgeId) {
-      e.preventDefault();
-      const form = e.target;
-      const tag = form.closest('.conn-tag');
-      const btn = form.querySelector('button[type="submit"]');
-      if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+                    async function saveConnectionEdit(e, edgeId) {
+                      e.preventDefault();
+                    const form = e.target;
+                    const tag = form.closest('.conn-tag');
+                    const btn = form.querySelector('button[type="submit"]');
+                    if (btn) {btn.disabled = true; btn.style.opacity = '0.6'; }
 
-      try {
+                    try {
         // 1. Delete old edge
         const delRes = await fetch(`/admin/flows/connections/${edgeId}/delete?clientId=<%= clientId %>`, {
-          method: 'POST',
-          headers: { 'Accept': 'application/json' }
+                      method: 'POST',
+                    headers: {'Accept': 'application/json' }
         });
-        const delData = await delRes.json();
-        if (!delData.success) throw new Error(delData.error || 'Failed to remove old connection');
+                    const delData = await delRes.json();
+                    if (!delData.success) throw new Error(delData.error || 'Failed to remove old connection');
 
-        // 2. Create new edge with updated values
-        const fd = new FormData(form);
-        const body = new FormData();
-        body.append('from_step', tag.closest('.step-card').dataset.nodeId);
-        body.append('to_step', fd.get('to_step'));
-        if (fd.get('outcome_name')) body.append('outcome_name', fd.get('outcome_name'));
-        if (fd.get('user_choice')) body.append('user_choice', fd.get('user_choice'));
-        body.append('clientId', '<%= clientId %>');
+                    // 2. Create new edge with updated values
+                    const fd = new FormData(form);
+                    const body = new FormData();
+                    body.append('from_step', tag.closest('.step-card').dataset.nodeId);
+                    body.append('to_step', fd.get('to_step'));
+                    if (fd.get('outcome_name')) body.append('outcome_name', fd.get('outcome_name'));
+                    if (fd.get('user_choice')) body.append('user_choice', fd.get('user_choice'));
+                    body.append('clientId', '<%= clientId %>');
 
-        const creRes = await fetch('/admin/flows/connections?clientId=<%= clientId %>', {
-          method: 'POST',
-          headers: { 'Accept': 'application/json' },
-          body: body
+                    const creRes = await fetch('/admin/flows/connections?clientId=<%= clientId %>', {
+                      method: 'POST',
+                    headers: {'Accept': 'application/json' },
+                    body: body
         });
-        const creData = await creRes.json();
+                    const creData = await creRes.json();
 
-        if (creData.success) {
-          showToast('Connection updated', 'success');
+                    if (creData.success) {
+                      showToast('Connection updated', 'success');
           setTimeout(() => window.location.reload(), 500);
         } else {
           throw new Error(creData.error || 'Failed to create new connection');
         }
       } catch (err) {
-        showToast(err.message, 'error');
-        if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+                      showToast(err.message, 'error');
+                    if (btn) {btn.disabled = false; btn.style.opacity = ''; }
       }
-      return false;
+                    return false;
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // FIX: populate ALL condition dropdowns in a step (editor + inline edits)
-    // ═══════════════════════════════════════════════════════════════
-    function populateConditionDropdown(nodeId) {
+                    // ═══════════════════════════════════════════════════════════════
+                    // FIX: populate ALL condition dropdowns in a step (editor + inline edits)
+                    // ═══════════════════════════════════════════════════════════════
+                    function populateConditionDropdown(nodeId) {
       const stepRow = document.querySelector(`.step-card[data-node-id="${nodeId}"]`);
-      if (!stepRow) return;
-      const stepType = stepRow.dataset.stepType;
-      const selectEls = stepRow.querySelectorAll('.conn-condition');
-      if (!selectEls.length) return;
+                    if (!stepRow) return;
+                    const stepType = stepRow.dataset.stepType;
+                    const selectEls = stepRow.querySelectorAll('.conn-condition');
+                    if (!selectEls.length) return;
 
       selectEls.forEach(selectEl => {
         while (selectEl.options.length > 1) selectEl.remove(1);
 
-        if (stepType === 'collect_input') {
+                    if (stepType === 'collect_input') {
           const optionsList = document.getElementById('options-list-' + nodeId);
-          if (optionsList) {
-            optionsList.querySelectorAll('.option-row').forEach(row => {
-              const selectOpt = row.querySelector('.opt-value-select');
-              const customInput = row.querySelector('.opt-value-custom');
-              let value = selectOpt.value === '__custom__' ? customInput.value.trim() : selectOpt.value;
-              if (value) {
-                const option = document.createElement('option');
-                option.value = value; option.textContent = value;
-                selectEl.appendChild(option);
-              }
-            });
+                    if (optionsList) {
+                      optionsList.querySelectorAll('.option-row').forEach(row => {
+                        const selectOpt = row.querySelector('.opt-value-select');
+                        const customInput = row.querySelector('.opt-value-custom');
+                        let value = selectOpt.value === '__custom__' ? customInput.value.trim() : selectOpt.value;
+                        if (value) {
+                          const option = document.createElement('option');
+                          option.value = value; option.textContent = value;
+                          selectEl.appendChild(option);
+                        }
+                      });
           }
         } else if (stepType === 'property_welcome') {
-          ['BROCHURE', 'VISIT', 'CALL', 'BUY', 'RENT'].forEach(id => {
-            const option = document.createElement('option');
-            option.value = id; option.textContent = id;
-            selectEl.appendChild(option);
-          });
+                      ['BROCHURE', 'VISIT', 'CALL', 'BUY', 'RENT'].forEach(id => {
+                        const option = document.createElement('option');
+                        option.value = id; option.textContent = id;
+                        selectEl.appendChild(option);
+                      });
         }
       });
     }
 
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
-      initAjaxForms();
+                      initAjaxForms();
     });
   </script>

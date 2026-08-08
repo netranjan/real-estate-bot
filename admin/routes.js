@@ -340,6 +340,7 @@ router.post('/flows/steps', async (req, res) => {
 router.post('/flows/steps/:id/update', async (req, res) => {
   const { step_name, message_text, options, save_field, document_url, fallback_node_id } = req.body;
   const flowId = req.body.flow_id;
+  console.log('🔍 UPDATE BODY:', req.body);
   try {
     const node = await db.getNodeById(req.params.id);
     const meta = (await db.getAllNodeTypes()).find(t => t.node_type_code === node.node_type)?.builder_meta || {};
