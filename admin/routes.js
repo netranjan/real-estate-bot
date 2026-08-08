@@ -346,6 +346,7 @@ router.post('/flows/steps/:id/update', async (req, res) => {
     const meta = (await db.getAllNodeTypes()).find(t => t.node_type_code === node.node_type)?.builder_meta || {};
     console.log('🔍 UPDATE BODY for node', req.params.id, ':', req.body);
     const config = node.config || {};
+    console.log('DEBUG update node', req.params.id, 'body:', req.body, 'current config:', JSON.stringify(config));
     const fields = meta.fields || [];
 
     if (message_text !== undefined) config.text = message_text;
