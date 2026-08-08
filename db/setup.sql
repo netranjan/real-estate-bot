@@ -31,11 +31,18 @@ CREATE TABLE IF NOT EXISTS agents (
 -- 2. FLOW ENGINE
 -- ----------------------------
 
+-- [PASS1] Self-describing node types
 CREATE TABLE IF NOT EXISTS node_types (
     node_type_code VARCHAR(50) PRIMARY KEY,
     node_type_name VARCHAR(100) NOT NULL,
     description TEXT,
-    config_schema JSONB DEFAULT '{}'
+    handler_name VARCHAR(50) NOT NULL,
+    waits_for_input BOOLEAN DEFAULT FALSE,
+    has_save_reply BOOLEAN DEFAULT FALSE,
+    outcomes JSONB DEFAULT '[]',
+    builder_meta JSONB DEFAULT '{}',
+    config_schema JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS conversation_flows (
@@ -69,12 +76,14 @@ ALTER TABLE conversation_flows
     FOREIGN KEY (start_node_id) REFERENCES flow_nodes(node_id)
     ON DELETE SET NULL;
 
+-- [PASS1] flow_edges now has outcome_name for natural routing
 CREATE TABLE IF NOT EXISTS flow_edges (
     edge_id SERIAL PRIMARY KEY,
     flow_id INTEGER NOT NULL REFERENCES conversation_flows(flow_id) ON DELETE CASCADE,
     from_node_id INTEGER NOT NULL REFERENCES flow_nodes(node_id) ON DELETE CASCADE,
     to_node_id INTEGER NOT NULL REFERENCES flow_nodes(node_id) ON DELETE CASCADE,
     user_input_value VARCHAR(100),
+    outcome_name VARCHAR(50),
     condition_logic JSONB DEFAULT '{}',
     priority INTEGER DEFAULT 0,
     active BOOLEAN DEFAULT TRUE
@@ -240,23 +249,63 @@ CREATE INDEX IF NOT EXISTS idx_lead_answers_lead ON lead_answers(lead_id);
 CREATE INDEX IF NOT EXISTS idx_flow_edges_from ON flow_edges(from_node_id);
 CREATE INDEX IF NOT EXISTS idx_lead_answers_field ON lead_answers(field_name, field_value);
 
+-- [PASS1] Index for outcome-based routing
+CREATE INDEX IF NOT EXISTS idx_flow_edges_outcome ON flow_edges(flow_id, from_node_id, outcome_name);
+
 ALTER TABLE properties ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 -- ----------------------------
--- 7. SEED DATA (Node Types)
+-- 7. SEED DATA (Self-Describing Node Types)
 -- ----------------------------
 
-INSERT INTO node_types (node_type_code, node_type_name, description, config_schema) VALUES
-  ('collect_input', 'Collect Input', 'Ask user a question with options', '{}'),
-  ('send_message', 'Send Message', 'Send a plain text message', '{}'),
-  ('show_list', 'Show List', 'Display matching properties', '{}'),
-  ('property_welcome', 'Property Welcome', 'Show property details and action buttons', '{}'),
-  ('send_document', 'Send Document', 'Send brochure or PDF', '{}'),
-  ('book_appointment', 'Book Appointment', 'Book a site visit', '{}'),
-  ('request_callback', 'Request Callback', 'Request agent callback', '{}'),
-  ('assign_agent', 'Assign Agent', 'Assign lead to an agent', '{}'),
-  ('calculate_score', 'Calculate Score', 'Calculate lead quality score', '{}')
-ON CONFLICT (node_type_code) DO NOTHING;
+INSERT INTO node_types (node_type_code, node_type_name, description, handler_name, waits_for_input, has_save_reply, outcomes, builder_meta) VALUES
+  ('collect_input', 'Question', 'Ask user a question with options', 'collectInput', true, true,
+   '[{"id":"option_picked","label":"User picks an option","default":true},{"id":"free_text","label":"User types something else"}]',
+   '{"icon":"❓","color":"purple","label":"Question","fields":["text","options","field","header","footer"],"add_step_label":"❓ Question"}'),
+
+  ('send_message', 'Message', 'Send a plain text or media message', 'sendMessage', false, false,
+   '[{"id":"sent","label":"Message sent","default":true}]',
+   '{"icon":"💬","color":"blue","label":"Message","fields":["text","source","media_items","property_asset_type"],"add_step_label":"💬 Message"}'),
+
+  ('show_list', 'Property List', 'Display matching properties from database', 'showList', true, false,
+   '[{"id":"selected","label":"User picks a property","default":true},{"id":"no_match","label":"Nothing matches their search"}]',
+   '{"icon":"🏠","color":"green","label":"Property List","fields":["text","list_mode","match_dimensions","fallback_node_id","header","footer","button_text"],"add_step_label":"🏠 Property List"}'),
+
+  ('property_welcome', 'Property Welcome', 'Show property details and action buttons', 'propertyWelcome', true, false,
+   '[{"id":"button_clicked","label":"User taps a button","default":true}]',
+   '{"icon":"🏢","color":"indigo","label":"Welcome","fields":["text","buttons","header","suffix_text","fallback_text"],"add_step_label":"🏢 Welcome"}'),
+
+  ('send_document', 'Send Document', 'Send brochure or PDF', 'sendDocument', false, false,
+   '[{"id":"sent","label":"Document sent","default":true},{"id":"not_found","label":"Document not available"}]',
+   '{"icon":"📄","color":"orange","label":"Document","fields":["text","source","document_url","property_asset_type","media_items","fallback_text"],"add_step_label":"📄 Document"}'),
+
+  ('book_appointment', 'Book Visit', 'Book a site visit', 'bookAppointment', true, true,
+   '[{"id":"slot_picked","label":"User picks a slot","default":true},{"id":"no_slots","label":"No slots available"}]',
+   '{"icon":"📅","color":"pink","label":"Book Visit","fields":["text","slot_source","options","header","footer"],"add_step_label":"📅 Book Visit"}'),
+
+  ('request_callback', 'Request Callback', 'Request agent callback', 'requestCallback', false, false,
+   '[{"id":"requested","label":"Callback requested","default":true}]',
+   '{"icon":"📞","color":"teal","label":"Callback","fields":["text","sla_minutes","assign_to","confirmation_message"],"add_step_label":"📞 Callback"}'),
+
+  ('assign_agent', 'Assign Agent', 'Assign lead to an agent', 'assignAgent', false, false,
+   '[{"id":"assigned","label":"Agent assigned","default":true}]',
+   '{"icon":"👤","color":"gray","label":"Agent","fields":["text","strategy","agent_id","confirmation_message"],"add_step_label":"👤 Assign Agent"}'),
+
+  ('calculate_score', 'Calculate Score', 'Calculate lead quality score', 'calculateScore', false, false,
+   '[{"id":"scored","label":"Score calculated","default":true}]',
+   '{"icon":"⭐","color":"yellow","label":"Score","fields":["notify_lead","notify_message"],"add_step_label":"⭐ Score"}'),
+
+  ('end_conversation', 'End Conversation', 'Safely ends the conversation', 'endConversation', false, false,
+   '[{"id":"ended","label":"Conversation ended","default":true}]',
+   '{"icon":"🛑","color":"red","label":"End","fields":["text"],"add_step_label":"🛑 End"}')
+ON CONFLICT (node_type_code) DO UPDATE SET
+    node_type_name = EXCLUDED.node_type_name,
+    description = EXCLUDED.description,
+    handler_name = EXCLUDED.handler_name,
+    waits_for_input = EXCLUDED.waits_for_input,
+    has_save_reply = EXCLUDED.has_save_reply,
+    outcomes = EXCLUDED.outcomes,
+    builder_meta = EXCLUDED.builder_meta;
 
 -- ----------------------------
 -- 8. VIEWS
@@ -358,7 +407,7 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(100) NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     role VARCHAR(20) NOT NULL CHECK (role IN ('super_admin', 'client_user')),
-    client_id INTEGER REFERENCES clients(client_id) ON DELETE SET NULL, -- only for client_user
+    client_id INTEGER REFERENCES clients(client_id) ON DELETE SET NULL,
     display_name VARCHAR(255),
     active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
@@ -369,7 +418,7 @@ CREATE TABLE IF NOT EXISTS users (
 INSERT INTO users (username, password_hash, role, display_name)
 VALUES (
     'admin',
-    '$2b$10$u4twKaGnv3bRusxWrsjoI.NcSj/KCgcrfCDVMtILTHMWwFXizCgcy',  -- bcrypt hash of 'strongpassword123'
+    '$2b$10$u4twKaGnv3bRusxWrsjoI.NcSj/KCgcrfCDVMtILTHMWwFXizCgcy',
     'super_admin',
     'Super Admin'
 ) ON CONFLICT (username) DO NOTHING;
@@ -396,9 +445,5 @@ $$;
 
 -- Index on expire for cleanup
 CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
-
-INSERT INTO node_types (node_type_code, node_type_name, description)
-VALUES ('end_conversation', 'End Conversation', 'Safely ends the WhatsApp conversation')
-ON CONFLICT (node_type_code) DO NOTHING;
 
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS currency_symbol VARCHAR(5) DEFAULT '₹';

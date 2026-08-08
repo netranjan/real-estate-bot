@@ -1,6 +1,6 @@
 // core/handlers.js
-// All 10 node handlers consolidated. Each receives (lead, config).
-// WhatsApp credentials are resolved automatically. No duplicate code.
+// All node handlers. WhatsApp credentials resolved automatically.
+// [PASS1] Hardcoded side effects removed. Outcomes returned for engine routing.
 
 const WhatsAppClient = require('../transport/whatsapp');
 const repo = require('../db/repository');
@@ -114,7 +114,7 @@ async function sendMessage(lead, config) {
 
   const text = config.text || '';
   if (text) await wa.sendText(to, text);
-  return { success: true, type: 'TEXT_SENT' };
+  return { success: true, type: 'TEXT_SENT', outcome: 'sent' };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -152,6 +152,7 @@ async function collectInput(lead, config) {
   return { success: true, type: 'QUESTION_SENT', field: config.field };
 }
 
+// [PASS1] Returns outcome for engine routing
 async function saveCollectReply(lead, config, userInput) {
   const { field, options } = config;
   if (!field) throw new Error('collect_input node missing "field" in config');
@@ -160,7 +161,7 @@ async function saveCollectReply(lead, config, userInput) {
 
   if (!options || !options.length) {
     await repo.saveLeadAnswer(lead.lead_id, field, input, lead.current_node_id);
-    return { valid: true, field, value: input };
+    return { valid: true, outcome: 'free_text', field, value: input };
   }
 
   const byValue = options.find(opt => {
@@ -170,7 +171,7 @@ async function saveCollectReply(lead, config, userInput) {
   if (byValue) {
     const val = String(byValue.value || byValue).trim();
     await repo.saveLeadAnswer(lead.lead_id, field, val, lead.current_node_id);
-    return { valid: true, field, value: val };
+    return { valid: true, outcome: 'option_picked', field, value: val };
   }
 
   const byLabel = options.find(opt => {
@@ -180,15 +181,16 @@ async function saveCollectReply(lead, config, userInput) {
   if (byLabel) {
     const val = String(byLabel.value || byLabel.label || byLabel).trim();
     await repo.saveLeadAnswer(lead.lead_id, field, val, lead.current_node_id);
-    return { valid: true, field, value: val };
+    return { valid: true, outcome: 'option_picked', field, value: val };
   }
 
-  const examples = options.slice(0, 3).map(o => String(o.label || o.value || o)).join(', ');
-  return { valid: false, error: `Please choose from: ${examples}` };
+  // Free text that didn't match any option
+  await repo.saveLeadAnswer(lead.lead_id, field, input, lead.current_node_id);
+  return { valid: true, outcome: 'free_text', field, value: input };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 3. show_list
+// 3. show_list  [PASS1] — returns outcomes, no hardcoded empty message
 // ═══════════════════════════════════════════════════════════════════════════════
 
 async function showList(lead, config) {
@@ -202,7 +204,7 @@ async function showList(lead, config) {
     m[a.field_name] = a.field_value; return m;
   }, {});
 
-  if (mode === 'filtered') {
+  if (mode === 'filtered' || mode === 'smart') {
     const dims = config.match_dimensions || [];
     const hasOldConditions = config.filter_conditions && config.filter_conditions.length > 0;
 
@@ -219,14 +221,10 @@ async function showList(lead, config) {
     items = (await repo.getPropertiesByClient(lead.client_id)).map(fmtPropertyItem);
   }
 
+  // [PASS1] Empty state is now handled by outcome routing in the engine.
+  // Business owner draws: show_list.no_match → [their message node]
   if (items.length === 0) {
-    if (config.fallback_node_id) {
-      return { success: true, type: 'LIST_EMPTY', use_fallback: true };
-    }
-    await wa.sendButtons(to, 'Sorry, no properties match your criteria right now.', [
-      { id: 'REQUEST_CALLBACK', title: 'Request Callback' }
-    ], 'No Matches');
-    return { success: true, type: 'LIST_EMPTY' };
+    return { success: true, type: 'LIST_EMPTY', outcome: 'no_match' };
   }
 
   const sections = [{
@@ -239,7 +237,7 @@ async function showList(lead, config) {
   }];
 
   await wa.sendList(to, text || 'Here are matching properties:', button_text || 'View Options', sections, header, footer);
-  return { success: true, type: 'LIST_SENT', item_count: items.length };
+  return { success: true, type: 'LIST_SENT', outcome: 'selected', item_count: items.length };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -265,7 +263,6 @@ async function propertyWelcome(lead, config) {
   let messageText = property.welcome_message || '';
   if (config.suffix_text) messageText += '\n\n' + config.suffix_text;
 
-  // Resolve template variables ({{property_price}}, {{property_possession}}, etc.)
   messageText = await resolveString(messageText, lead.lead_id);
 
   const buttons = (config.buttons || []).map(b => ({
@@ -279,7 +276,7 @@ async function propertyWelcome(lead, config) {
     await wa.sendText(to, messageText);
   }
 
-  return { success: true, type: 'PROPERTY_WELCOME_SENT', property_id: propertyId, property_name: property.property_name };
+  return { success: true, type: 'PROPERTY_WELCOME_SENT', outcome: 'button_clicked', property_id: propertyId, property_name: property.property_name };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -293,12 +290,12 @@ async function sendDocument(lead, config) {
 
   if (propertyId) {
     const count = await sendPropertyAssets(lead, propertyId, config.property_asset_type, wa);
-    if (count) return { success: true, type: 'PROPERTY_ASSETS_SENT', count };
+    if (count) return { success: true, type: 'PROPERTY_ASSETS_SENT', count, outcome: 'sent' };
   }
 
   if (config.media_items && config.media_items.length > 0) {
     const count = await sendStaticAssets(lead, config.media_items, wa);
-    if (count) return { success: true, type: 'STATIC_ASSETS_SENT', count };
+    if (count) return { success: true, type: 'STATIC_ASSETS_SENT', count, outcome: 'sent' };
   }
 
   let url = config.document_url || null;
@@ -310,15 +307,15 @@ async function sendDocument(lead, config) {
   if (!url) {
     const fallback = config.fallback_text || 'Sorry, the document is not available right now.';
     await wa.sendText(to, fallback);
-    return { success: false, type: 'NO_DOCUMENT_AVAILABLE' };
+    return { success: false, type: 'NO_DOCUMENT_AVAILABLE', outcome: 'not_found' };
   }
 
   await wa.sendDocument(to, url, config.filename || 'Document.pdf');
-  return { success: true, type: 'LEGACY_DOCUMENT_SENT', url };
+  return { success: true, type: 'LEGACY_DOCUMENT_SENT', outcome: 'sent', url };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 6. book_appointment
+// 6. book_appointment  [PASS1] — returns outcomes
 // ═══════════════════════════════════════════════════════════════════════════════
 
 async function bookAppointment(lead, config) {
@@ -350,13 +347,14 @@ async function bookAppointment(lead, config) {
     await wa.sendList(to, config.text || "Let's schedule your site visit! 🏗️\n\nPlease pick a convenient slot.", 'Select Slot', [
       { title: 'Available Slots', rows }
     ]);
-    return { success: true, type: 'SLOT_LIST_SENT', wait_for_input: true };
+    return { success: true, type: 'SLOT_LIST_SENT', outcome: 'slot_picked', wait_for_input: true };
   }
 
-  await wa.sendText(to, config.text || 'No visit slots are currently available.');
-  return { success: true, type: 'NO_SLOTS_AVAILABLE' };
+  // [PASS1] No slots = outcome, not hardcoded dead end
+  return { success: true, type: 'NO_SLOTS_AVAILABLE', outcome: 'no_slots' };
 }
 
+// [PASS1] Returns outcome for engine routing
 async function saveVisitReply(lead, _config, userInput) {
   if (!String(userInput).startsWith('VISIT_')) {
     return { valid: false, error: 'Invalid visit option' };
@@ -374,7 +372,7 @@ async function saveVisitReply(lead, _config, userInput) {
     agentId: lead.assigned_agent_id || null,
   });
   await repo.updateLeadPipeline(lead.lead_id, 'Site Visit Booked');
-  return { valid: true, visit_id: visitOptionId };
+  return { valid: true, outcome: 'slot_picked', visit_id: visitOptionId };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -385,8 +383,7 @@ async function requestCallback(lead, config) {
   const wa = await getWhatsApp(lead);
   const to = lead.whatsapp_number;
   const { sla_minutes, assign_to } = config;
-  
-  // Support both confirmation_message and legacy text key
+
   const confirmation_message = config.confirmation_message || config.text;
 
   let agentId = lead.assigned_agent_id || null;
@@ -419,7 +416,7 @@ async function requestCallback(lead, config) {
     : `Got it! ${agentName} will call you on this WhatsApp number within ${sla_minutes || 15} minutes. 📞\n\nThank you for reaching out!`;
 
   await wa.sendText(to, message);
-  return { success: true, type: 'CALLBACK_REQUESTED', callback_id: callback.callback_request_id };
+  return { success: true, type: 'CALLBACK_REQUESTED', outcome: 'requested', callback_id: callback.callback_request_id };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -461,7 +458,7 @@ async function assignAgent(lead, config) {
     : (text || `You have been assigned to ${agentName}.`);
 
   await wa.sendText(to, message);
-  return { success: true, type: 'AGENT_ASSIGNED', agent_id: agentId };
+  return { success: true, type: 'AGENT_ASSIGNED', outcome: 'assigned', agent_id: agentId };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -480,7 +477,7 @@ async function calculateScore(lead, config) {
     await wa.sendText(to, message);
   }
 
-  return { success: true, type: 'SCORE_CALCULATED', score };
+  return { success: true, type: 'SCORE_CALCULATED', outcome: 'scored', score };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -500,7 +497,7 @@ async function endConversation(lead, config) {
   delete ctx.selected_visit_option_id;
   await repo.updateLeadContext(lead.lead_id, ctx);
 
-  return { success: true, type: 'CONVERSATION_ENDED' };
+  return { success: true, type: 'CONVERSATION_ENDED', outcome: 'ended' };
 }
 
 module.exports = {

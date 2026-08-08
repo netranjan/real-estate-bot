@@ -170,6 +170,7 @@ router.post('/properties/:id/slots/:slotId/delete', async (req, res) => {
 router.get('/flows', async (req, res) => {
   const clientId = resolveClientId(req);
   const flows = await db.getFlowsByClient(clientId);
+  const nodeTypes = await db.getAllNodeTypes();
   let activeFlow = null;
   if (req.query.flowId) activeFlow = flows.find(f => f.flow_id == req.query.flowId) || null;
   if (!activeFlow) activeFlow = flows.find(f => f.is_active) || null;
@@ -177,11 +178,14 @@ router.get('/flows', async (req, res) => {
   if (activeFlow) {
     const fullFlow = await flowService.getFullFlow(activeFlow.flow_id);
     steps = fullFlow.nodes;
+    for (const step of steps) {
+      const nt = nodeTypes.find(n => n.node_type_code === step.node_type);
+      step.outcomes = nt?.outcomes || [];
+    }
   }
-  if (req.query.ajax === '1') return res.json({ success: true, flows, activeFlow, steps, clientId });
-  render(req, res, 'admin/flow-builder', { title: 'Flow Builder', flows, activeFlow, steps, clientId });
+  if (req.query.ajax === '1') return res.json({ success: true, flows, activeFlow, steps, nodeTypes, clientId });
+  render(req, res, 'admin/flow-builder', { title: 'Flow Builder', flows, activeFlow, steps, nodeTypes, clientId });
 });
-
 router.post('/flows', async (req, res) => {
   const clientId = resolveClientId(req);
   const { flow_name } = req.body;
@@ -285,7 +289,6 @@ router.post('/flows/templates', async (req, res) => {
     respond(req, res, { success: true, flow }, '/admin/flows?flowId=' + flow.flow_id);
   } catch (err) { respond(req, res, { success: false, error: err.message }, '/admin/flows'); }
 });
-
 router.post('/flows/steps', async (req, res) => {
   const clientId = resolveClientId(req);
   const flowId = req.body.flow_id;
@@ -293,8 +296,8 @@ router.post('/flows/steps', async (req, res) => {
   const flow = await db.getFlowById(flowId);
   if (!flow) return res.status(400).json({ success: false, error: 'Flow not found' });
   const { step_name, message_text, step_type, options, save_field } = req.body;
-  const typeMap = { question: 'collect_input', message: 'send_message', property_list: 'show_list', property_welcome: 'property_welcome', brochure: 'send_document', book_visit: 'book_appointment', callback: 'request_callback', end_conversation: 'end_conversation' };
-  const nodeType = typeMap[step_type] || 'send_message';
+  const typeRow = (await db.getAllNodeTypes()).find(t => t.node_type_code === step_type);
+  const nodeType = typeRow ? typeRow.node_type_code : 'send_message';
   const config = { text: message_text };
   if (step_type === 'property_welcome') {
     const labels = req.body['button_label'] || [];
@@ -339,9 +342,25 @@ router.post('/flows/steps/:id/update', async (req, res) => {
   const flowId = req.body.flow_id;
   try {
     const node = await db.getNodeById(req.params.id);
+    const meta = (await db.getAllNodeTypes()).find(t => t.node_type_code === node.node_type)?.builder_meta || {};
     const config = node.config || {};
+    const fields = meta.fields || [];
+
     if (message_text !== undefined) config.text = message_text;
-    if (node.node_type === 'property_welcome') {
+
+    if (fields.includes('options') && options !== undefined) {
+      const lines = options.split('\n').filter(l => l.trim());
+      if (node.node_type === 'collect_input') {
+        config.options = lines.map(line => {
+          const [label, value] = line.split(':').map(s => s.trim());
+          return { label, value: value || label };
+        });
+      } else if (node.node_type === 'book_appointment') {
+        config.options = lines.map(line => ({ label: line, value: line }));
+      }
+    }
+
+    if (fields.includes('buttons')) {
       const labels = req.body['button_label'] || [];
       const actions = req.body['button_action'] || [];
       config.buttons = [];
@@ -357,16 +376,13 @@ router.post('/flows/steps/:id/update', async (req, res) => {
         });
       }
       delete config.options;
-    } else if (options !== undefined && (node.node_type === 'collect_input' || node.node_type === 'book_appointment')) {
-      const lines = options.split('\n').filter(l => l.trim());
-      if (node.node_type === 'book_appointment') config.options = lines.map(line => ({ label: line, value: line }));
-      else config.options = lines.map(line => { const [label, value] = line.split(':'); return { label, value: value || label }; });
     }
-    if (node.node_type === 'collect_input') {
-      if (save_field !== undefined) config.field = save_field || undefined;
-      config.validate_budget = req.body.validate_budget === 'true';
+
+    if (fields.includes('field') && save_field !== undefined) {
+      config.field = save_field || undefined;
     }
-    if (node.node_type === 'show_list') {
+
+    if (fields.includes('list_mode')) {
       const listMode = req.body['list-mode'] || 'all';
       const matchDims = req.body['match_dimensions[]'] || req.body.match_dimensions || [];
       config.filter_mode = listMode;
@@ -374,18 +390,31 @@ router.post('/flows/steps/:id/update', async (req, res) => {
       if (fallback_node_id) config.fallback_node_id = parseInt(fallback_node_id);
       else delete config.fallback_node_id;
       delete config.options;
-    } else if (node.node_type === 'send_document') {
-      if (req.body.media_items_json) {
-        try { const items = JSON.parse(req.body.media_items_json); config.media_items = Array.isArray(items) && items.length > 0 ? items : []; delete config.document_url_field; delete config.filename; } catch (e) { }
-      } else if (document_url !== undefined) { config.document_url_field = document_url; delete config.media_items; delete config.filename; }
     }
+
+    if (fields.includes('source') && req.body.source) {
+      config.source = req.body.source;
+    }
+
+    if (fields.includes('media_items') && req.body.media_items_json) {
+      try {
+        const items = JSON.parse(req.body.media_items_json);
+        config.media_items = Array.isArray(items) && items.length > 0 ? items : [];
+        delete config.document_url_field;
+        delete config.filename;
+      } catch (e) { }
+    } else if (fields.includes('document_url') && document_url !== undefined) {
+      config.document_url_field = document_url;
+      delete config.media_items;
+      delete config.filename;
+    }
+
     if (node.node_type === 'book_appointment' && options === '') config.options = [];
     await db.updateNode(req.params.id, { nodeName: step_name, config });
     const updated = await db.getNodeById(req.params.id);
     respond(req, res, { success: true, node: updated }, flowId ? `/admin/flows?flowId=${flowId}` : '/admin/flows');
   } catch (err) { respond(req, res, { success: false, error: err.message }, '/admin/flows'); }
 });
-
 router.post('/flows/steps/:id/delete', async (req, res) => {
   try { await db.deleteNode(req.params.id); respond(req, res, { success: true }, '/admin/flows'); }
   catch (err) { respond(req, res, { success: false, error: err.message }, '/admin/flows'); }
@@ -393,14 +422,15 @@ router.post('/flows/steps/:id/delete', async (req, res) => {
 
 // ── CRITICAL FIX: use the node's actual flow, not the active flow ──
 router.post('/flows/connections', async (req, res) => {
-  const { from_step, to_step, user_choice, action_type, action_field } = req.body;
+  const { from_step, to_step, user_choice, outcome_name, action_type, action_field } = req.body;
   const fromNode = await db.getNodeById(from_step);
   if (!fromNode) return res.status(400).json({ success: false, error: 'From step not found' });
   const flowId = fromNode.flow_id;
   const conditionLogic = flowService.buildEdgeAction(action_type, { field: action_field });
   const userInputValue = (user_choice && String(user_choice).trim()) ? String(user_choice).trim() : null;
+  const outcomeNameValue = (outcome_name && String(outcome_name).trim()) ? String(outcome_name).trim() : null;
   try {
-    const edge = await db.createEdge({ flowId, fromNodeId: from_step, toNodeId: to_step, userInputValue, conditionLogic, priority: 0 });
+    const edge = await db.createEdge({ flowId, fromNodeId: from_step, toNodeId: to_step, userInputValue, outcomeName: outcomeNameValue, conditionLogic, priority: 0 });
     respond(req, res, { success: true, edge }, '/admin/flows?flowId=' + flowId);
   } catch (err) { respond(req, res, { success: false, error: err.message }, '/admin/flows'); }
 });

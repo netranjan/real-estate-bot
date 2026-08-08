@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const pool = require('./db/pool');
 const { handleIncomingMessage } = require('./core/engine');
+const { loadRegistry } = require('./core/registry');
 
 const app = express();
 app.use(express.json());
@@ -178,6 +179,7 @@ process.on('SIGINT', async () => {
   validateEnv();
   await checkDb();
   await initSchema();
+  await loadRegistry();
 
   app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);

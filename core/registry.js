@@ -1,54 +1,64 @@
 // core/registry.js
-// Node type registry. Adding a new node type = 1 line here.
-// Replaces: engine/state-machine.js lines 3-14 + nodeWaitsForInput() switch.
+// Self-describing node registry. Loaded from DB at startup.
+// Adding a new node type = 1 INSERT into node_types + 1 handler function.
+// No edits needed here.
 
 const handlers = require('./handlers');
+const db = require('../db/queries');
 
-// Registry entry: { execute, saveReply?, waitsForInput? }
-const REGISTRY = {
-  send_message: {
-    execute: handlers.sendMessage,
-    waitsForInput: false,
-  },
-  collect_input: {
-    execute: handlers.collectInput,
-    saveReply: handlers.saveCollectReply,
-    waitsForInput: true,
-  },
-  show_list: {
-    execute: handlers.showList,
-    waitsForInput: true,
-  },
-  property_welcome: {
-    execute: handlers.propertyWelcome,
-    waitsForInput: true,
-  },
-  send_document: {
-    execute: handlers.sendDocument,
-    waitsForInput: false,
-  },
-  book_appointment: {
-    execute: handlers.bookAppointment,
-    saveReply: handlers.saveVisitReply,
-    waitsForInput: true,
-  },
-  request_callback: {
-    execute: handlers.requestCallback,
-    waitsForInput: false,
-  },
-  assign_agent: {
-    execute: handlers.assignAgent,
-    waitsForInput: false,
-  },
-  calculate_score: {
-    execute: handlers.calculateScore,
-    waitsForInput: false,
-  },
-  end_conversation: {
-    execute: handlers.endConversation,
-    waitsForInput: false,
-  },
-};
+let REGISTRY = null;
+let NODE_TYPES = null;
+
+async function loadRegistry() {
+  const rows = await db.getAllNodeTypes();
+  REGISTRY = {};
+  NODE_TYPES = {};
+
+  for (const row of rows) {
+    const handlerFn = handlers[row.handler_name];
+    if (!handlerFn) {
+      console.warn(`⚠️ Handler "${row.handler_name}" not found for node type "${row.node_type_code}"`);
+      continue;
+    }
+
+    const entry = {
+      execute: handlerFn,
+      waitsForInput: row.waits_for_input,
+      hasSaveReply: row.has_save_reply,
+      outcomes: row.outcomes || [],
+      builderMeta: row.builder_meta || {},
+    };
+
+    if (row.has_save_reply) {
+      // Try common naming patterns: collectInput → saveCollectReply, bookAppointment → saveVisitReply
+      let saveFnName = row.handler_name.replace(/Input$/, 'Reply');
+      if (!handlers[saveFnName]) {
+        saveFnName = `save${capitalize(row.handler_name)}Reply`;
+      }
+      if (!handlers[saveFnName]) {
+        // Special case mappings
+        const mapping = {
+          collectInput: 'saveCollectReply',
+          bookAppointment: 'saveVisitReply',
+        };
+        saveFnName = mapping[row.handler_name];
+      }
+      entry.saveReply = handlers[saveFnName];
+      if (!entry.saveReply) {
+        console.warn(`⚠️ Save reply handler not found for ${row.node_type_code} (tried: ${saveFnName})`);
+      }
+    }
+
+    REGISTRY[row.node_type_code] = entry;
+    NODE_TYPES[row.node_type_code] = row;
+  }
+
+  console.log(`✅ Registry loaded: ${Object.keys(REGISTRY).length} node types`);
+}
+
+function capitalize(s) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 function getHandler(nodeType) {
   const entry = REGISTRY[nodeType];
@@ -56,8 +66,15 @@ function getHandler(nodeType) {
   return entry;
 }
 
+function getNodeMeta(nodeType) {
+  return NODE_TYPES[nodeType] || null;
+}
+
+function getOutcomes(nodeType) {
+  return NODE_TYPES[nodeType]?.outcomes || [];
+}
+
 function nodeWaitsForInput(nodeType, result) {
-  // Handler can override at runtime
   if (result && typeof result.wait_for_input === 'boolean') {
     return result.wait_for_input;
   }
@@ -65,4 +82,16 @@ function nodeWaitsForInput(nodeType, result) {
   return entry ? !!entry.waitsForInput : true;
 }
 
-module.exports = { getHandler, nodeWaitsForInput, REGISTRY };
+function listNodeTypes() {
+  return Object.values(NODE_TYPES);
+}
+
+module.exports = {
+  loadRegistry,
+  getHandler,
+  getNodeMeta,
+  getOutcomes,
+  nodeWaitsForInput,
+  listNodeTypes,
+  REGISTRY: () => REGISTRY,
+};

@@ -124,7 +124,10 @@ async function getAgentById(agentId) {
 // ═══════════════════════════════════════
 
 async function getAllNodeTypes() {
-  return queryMany('SELECT * FROM node_types ORDER BY node_type_name');
+  return queryMany(
+    'SELECT * FROM node_types ORDER BY node_type_name',
+    []
+  );
 }
 
 // ═══════════════════════════════════════
@@ -329,11 +332,11 @@ async function getEdgeByInput(fromNodeId, userInput) {
   );
 }
 
-async function createEdge({ flowId, fromNodeId, toNodeId, userInputValue, conditionLogic, priority }) {
+async function createEdge({ flowId, fromNodeId, toNodeId, userInputValue, outcomeName, conditionLogic, priority }) {
   const res = await query(
-    `INSERT INTO flow_edges (flow_id, from_node_id, to_node_id, user_input_value, condition_logic, priority, active)
-     VALUES ($1, $2, $3, $4, $5, $6, TRUE) RETURNING *`,
-    [flowId, fromNodeId, toNodeId, userInputValue || null, JSON.stringify(conditionLogic || {}), priority || 0]
+    `INSERT INTO flow_edges (flow_id, from_node_id, to_node_id, user_input_value, outcome_name, condition_logic, priority, active)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE) RETURNING *`,
+    [flowId, fromNodeId, toNodeId, userInputValue || null, outcomeName || null, JSON.stringify(conditionLogic || {}), priority || 0]
   );
   return res.rows[0];
 }
