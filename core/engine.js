@@ -154,14 +154,24 @@ async function runFlow(lead, startNode) {
     console.log(`▶️ Executing node: ${node.node_code} (${node.node_type})`);
     const result = await handler.execute(lead, resolvedConfig);
 
-    // [PASS1] Outcome routing
     const nextEdge = await findNextEdge(node.node_id, result, null);
 
     if (!nextEdge) {
       const waits = nodeWaitsForInput(node.node_type, result);
+      console.log(`🔍 Node ${node.node_code} waitsForInput=${waits}`);
       if (waits) {
         console.log(`⏸️ Node ${node.node_code} waiting for user input`);
         await repo.updateLeadNode(lead.lead_id, node.node_id);
+        
+        // Bookmark this interactive node for stale button recovery
+        let ctx = lead.context_data || {};
+        if (typeof ctx === 'string') {
+          try { ctx = JSON.parse(ctx); } catch (e) { ctx = {}; }
+        }
+        ctx.last_interactive_node_id = node.node_id;
+        await repo.updateLeadContext(lead.lead_id, ctx);
+        console.log(`🔖 Bookmarked interactive node ${node.node_code} (${node.node_id})`);
+        
         break;
       }
       console.log(`🔚 No outgoing edge from ${node.node_code}, flow paused`);
@@ -190,6 +200,7 @@ async function processUserInput(lead, userInput) {
   }
 
   console.log(`📩 Input "${userInput}" at node ${currentNode.node_code} (type: ${currentNode.node_type})`);
+  console.log(`🔍 Lead context_data:`, JSON.stringify(lead.context_data));
 
   const handler = getHandler(currentNode.node_type);
   const resolvedConfig = await resolveConfig(currentNode.config, lead.lead_id);
@@ -204,7 +215,6 @@ async function processUserInput(lead, userInput) {
       const canonicalValue = saveResult.value || userInput;
       console.log(`✅ Valid reply. Canonical: "${canonicalValue}"`);
 
-      // Specific input first, then outcome, then default
       let edge = await findNextEdge(currentNode.node_id, saveResult, canonicalValue);
 
       if (!edge && (String(userInput).startsWith('PROPERTY_') || String(userInput).startsWith('VISIT_'))) {
@@ -229,6 +239,36 @@ async function processUserInput(lead, userInput) {
 
   // Direct input matching (for nodes without saveReply)
   let edge = await findNextEdge(currentNode.node_id, null, userInput);
+  console.log(`🔍 Direct match edge: ${edge ? edge.edge_id : 'null'}`);
+
+  // >>> STALE BUTTON RECOVERY
+  const waits = nodeWaitsForInput(currentNode.node_type, null);
+  console.log(`🔍 Stale recovery check: edge=${edge ? 'found' : 'null'}, waits=${waits}, lastId=${lead.context_data?.last_interactive_node_id}`);
+  
+  if (!edge && !waits) {
+    const lastId = lead.context_data?.last_interactive_node_id;
+    if (lastId && lastId !== currentNode.node_id) {
+      const lastNode = await repo.getNodeById(lastId);
+      console.log(`🔍 lastNode: ${lastNode ? lastNode.node_code : 'null'}, flow_match=${lastNode ? lastNode.flow_id === lead.current_flow_id : 'n/a'}`);
+      if (lastNode && lastNode.flow_id === lead.current_flow_id) {
+        const testEdge = await findNextEdge(lastNode.node_id, null, userInput);
+        console.log(`🔍 testEdge from ${lastNode.node_code}: ${testEdge ? testEdge.edge_id : 'null'}`);
+        if (testEdge) {
+          console.log(`🔄 Stale button recovery: "${userInput}" from ${currentNode.node_code} → rewinding to ${lastNode.node_code}`);
+          await repo.updateLeadNode(lead.lead_id, lastNode.node_id);
+          lead = await repo.getLeadById(lead.lead_id);
+          
+          const lastHandler = getHandler(lastNode.node_type);
+          const lastConfig = await resolveConfig(lastNode.config, lead.lead_id);
+          if (typeof lastHandler.saveReply === 'function') {
+            await lastHandler.saveReply(lead, lastConfig, userInput);
+          }
+          edge = testEdge;
+        }
+      }
+    }
+  }
+  // <<< END STALE BUTTON RECOVERY
 
   // Stale intent recovery before giving up
   if (!edge) {
