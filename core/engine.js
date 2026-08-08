@@ -205,6 +205,7 @@ async function processUserInput(lead, userInput) {
       console.log(`✅ Valid reply. Canonical: "${canonicalValue}"`);
 
 
+      }
 
       if (!edge) {
         console.log('❌ No edge after valid reply');
