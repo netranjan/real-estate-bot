@@ -204,7 +204,11 @@ async function processUserInput(lead, userInput) {
       const canonicalValue = saveResult.value || userInput;
       console.log(`✅ Valid reply. Canonical: "${canonicalValue}"`);
 
+      // Specific input first, then outcome, then default
+      let edge = await findNextEdge(currentNode.node_id, saveResult, canonicalValue);
 
+      if (!edge && (String(userInput).startsWith('PROPERTY_') || String(userInput).startsWith('VISIT_'))) {
+        edge = await findNextEdge(currentNode.node_id, null, null);
       }
 
       if (!edge) {
