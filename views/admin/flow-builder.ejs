@@ -465,6 +465,7 @@
                           </span>
 
                           <form class="conn-edit-form" onsubmit="return saveConnectionEdit(event, <%= conn.edgeId %>)">
+                            <input type="hidden" name="condition_logic" value="<%= JSON.stringify(conn.conditionLogic || {}) %>">
                             <select name="to_step" class="select-box" style="flex:1; min-width:140px;">
                               <% steps.forEach(t=> { if (t.node_id !== step.node_id) { %>
                                 <option value="<%= t.node_id %>" <%=t.node_id==conn.toNodeId ? 'selected' : '' %>>
@@ -1096,6 +1097,8 @@
         body.append('to_step', fd.get('to_step'));
         if (fd.get('outcome_name')) body.append('outcome_name', fd.get('outcome_name'));
         if (fd.get('user_choice')) body.append('user_choice', fd.get('user_choice'));
+        const condLogic = fd.get('condition_logic');
+        if (condLogic) body.append('condition_logic', condLogic);
         body.append('clientId', '<%= clientId %>');
 
         const creRes = await fetch('/admin/flows/connections?clientId=<%= clientId %>', {

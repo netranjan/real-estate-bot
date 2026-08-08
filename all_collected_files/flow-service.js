@@ -164,7 +164,6 @@ async function getFullFlow(flowId) {
       nodeMap[e.from_node_id].connections.push({
         edgeId: e.edge_id,
         userInput: e.user_input_value,
-        outcomeName: e.outcome_name,
         toNodeId: e.to_node_id,
         toNodeName: e.to_name,
         conditionLogic: e.condition_logic
