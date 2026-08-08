@@ -135,7 +135,7 @@
                   <% if (step.node_type !=='end_conversation' ) { %>
                     <div class="form-group">
                       <label class="form-label">Message</label>
-                      <textarea name="message_text" rows="2" class="textarea-box"><%= config.text || '' %></textarea>
+                      <textarea name="message_text" rows="2" class="textarea-box" required><%= config.text || '' %></textarea>
                     </div>
                     <% } %>
                       <% if (step.node_type==='collect_input' ) { %>
@@ -546,7 +546,7 @@
       </div>
 
       <div style="margin-top:1rem;">
-        <form action="/admin/flows/steps?clientId=<%= clientId %>" method="POST" class="add-step-bar">
+        <form action="/admin/flows/steps?clientId=<%= clientId %>" method="POST" class="add-step-bar" onsubmit="return validateAddStep(this)">
           <input type="hidden" name="clientId" value="<%= clientId %>">
           <input type="hidden" name="flow_id" value="<%= activeFlow.flow_id %>">
           <select name="step_type" class="select-box" style="width:auto;">
@@ -556,7 +556,8 @@
               </option>
               <% }); } %>
           </select>
-          <input type="text" name="step_name" placeholder="Step name" class="input-box" style="flex:1;">
+          <input type="text" name="step_name" placeholder="Step name *" required class="input-box" style="flex:1;">
+          <input type="text" name="message_text" placeholder="Message text *" required class="input-box" style="flex:2;">
           <button type="submit" class="btn btn-success">+ Add</button>
         </form>
       </div>
@@ -809,10 +810,24 @@
                     list.appendChild(row);
     }
 
+                    function validateAddStep(form) {
+                      const stepName = form.querySelector('[name="step_name"]').value.trim();
+                      const msgText = form.querySelector('[name="message_text"]').value.trim();
+                      if (!stepName) { showToast('Step name is required', 'error'); return false; }
+                      if (!msgText) { showToast('Message text is required', 'error'); return false; }
+                      return true;
+                    }
+
                     // ---- Form preparation ----
                     function prepareStepForm(nodeId) {
       const form = document.querySelector(`#editor-${nodeId} form`);
                     if (!form) return true;
+
+                    const msgText = form.querySelector('textarea[name="message_text"]');
+                    if (msgText && !msgText.value.trim()) {
+                      showToast('Message text is required', 'error');
+                      return false;
+                    }
 
                     const saveSelect = document.getElementById('save-field-select-' + nodeId);
                     const saveCustom = document.getElementById('save-field-custom-' + nodeId);
@@ -1009,8 +1024,11 @@
                           try {
                             const res = await fetch(form.action, {
                               method: form.method || 'POST',
-                              headers: { 'Accept': 'application/json' },
-                              body: new FormData(form)
+                              headers: { 
+                                'Accept': 'application/json',
+                                'Content-Type': 'application/x-www-form-urlencoded'
+                              },
+                              body: new URLSearchParams(new FormData(form))
                             });
                             const data = await res.json();
 

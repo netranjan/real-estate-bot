@@ -296,6 +296,12 @@ router.post('/flows/steps', async (req, res) => {
   const flow = await db.getFlowById(flowId);
   if (!flow) return res.status(400).json({ success: false, error: 'Flow not found' });
   const { step_name, message_text, step_type, options, save_field } = req.body;
+  if (!step_name || !step_name.trim()) {
+    return res.status(400).json({ success: false, error: 'Step name is required' });
+  }
+  if (!message_text || !message_text.trim()) {
+    return res.status(400).json({ success: false, error: 'Message text is required' });
+  }
   const typeRow = (await db.getAllNodeTypes()).find(t => t.node_type_code === step_type);
   const nodeType = typeRow ? typeRow.node_type_code : 'send_message';
   const config = { text: message_text };
@@ -314,7 +320,7 @@ router.post('/flows/steps', async (req, res) => {
         return { title: label, id: (id || getCanonicalId(label)).toUpperCase() };
       });
     }
-  } else if (options && (step_type === 'question' || step_type === 'book_appointment')) {
+  } else if (options && (step_type === 'collect_input' || step_type === 'book_appointment')) {
     const lines = options.split('\n').filter(l => l.trim());
     if (step_type === 'question') {
       config.options = lines.map(line => { const [label, value] = line.split(':').map(s => s.trim()); return { label, value: value || label }; });
@@ -322,7 +328,7 @@ router.post('/flows/steps', async (req, res) => {
     } else {
       config.options = lines.map(line => ({ label: line, value: line }));
     }
-  } else if (step_type === 'question') {
+  } else if (step_type === 'collect_input') {
     config.field = save_field || step_name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
   }
   if (step_type === 'property_list') {
@@ -344,6 +350,13 @@ router.post('/flows/steps/:id/update', async (req, res) => {
   try {
     const node = await db.getNodeById(req.params.id);
     const meta = (await db.getAllNodeTypes()).find(t => t.node_type_code === node.node_type)?.builder_meta || {};
+    if (!step_name || !step_name.trim()) {
+      return res.status(400).json({ success: false, error: 'Step name is required' });
+    }
+    const hasTextField = (meta.fields || []).includes('text');
+    if (hasTextField && message_text !== undefined && !message_text.trim()) {
+      return res.status(400).json({ success: false, error: 'Message text is required' });
+    }
     console.log('🔍 UPDATE BODY for node', req.params.id, ':', req.body);
     const config = node.config || {};
     console.log('DEBUG update node', req.params.id, 'body:', req.body, 'current config:', JSON.stringify(config));
