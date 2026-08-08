@@ -191,7 +191,6 @@ async function runFlow(lead, startNode) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // USER INPUT PROCESSOR
 // ═══════════════════════════════════════════════════════════════════════════════
-
 async function processUserInput(lead, userInput) {
   const currentNode = await repo.getNodeById(lead.current_node_id);
   if (!currentNode) {
@@ -244,25 +243,30 @@ async function processUserInput(lead, userInput) {
   // >>> STALE BUTTON RECOVERY
   const waits = nodeWaitsForInput(currentNode.node_type, null);
   console.log(`🔍 Stale recovery check: edge=${edge ? 'found' : 'null'}, waits=${waits}, lastId=${lead.context_data?.last_interactive_node_id}`);
-  
+
   if (!edge && !waits) {
     const lastId = lead.context_data?.last_interactive_node_id;
     if (lastId && lastId !== currentNode.node_id) {
       const lastNode = await repo.getNodeById(lastId);
       console.log(`🔍 lastNode: ${lastNode ? lastNode.node_code : 'null'}, flow_match=${lastNode ? lastNode.flow_id === lead.current_flow_id : 'n/a'}`);
       if (lastNode && lastNode.flow_id === lead.current_flow_id) {
-        const testEdge = await findNextEdge(lastNode.node_id, null, userInput);
+        const lastHandler = getHandler(lastNode.node_type);
+        const lastConfig = await resolveConfig(lastNode.config, lead.lead_id);
+
+        // Call saveReply FIRST to get the outcome, then find the edge
+        let saveResult = null;
+        if (typeof lastHandler.saveReply === 'function') {
+          saveResult = await lastHandler.saveReply(lead, lastConfig, userInput);
+          console.log(`🔍 saveReply result: valid=${saveResult.valid}, outcome=${saveResult.outcome}`);
+        }
+
+        const testEdge = await findNextEdge(lastNode.node_id, saveResult, userInput);
         console.log(`🔍 testEdge from ${lastNode.node_code}: ${testEdge ? testEdge.edge_id : 'null'}`);
+
         if (testEdge) {
           console.log(`🔄 Stale button recovery: "${userInput}" from ${currentNode.node_code} → rewinding to ${lastNode.node_code}`);
           await repo.updateLeadNode(lead.lead_id, lastNode.node_id);
           lead = await repo.getLeadById(lead.lead_id);
-          
-          const lastHandler = getHandler(lastNode.node_type);
-          const lastConfig = await resolveConfig(lastNode.config, lead.lead_id);
-          if (typeof lastHandler.saveReply === 'function') {
-            await lastHandler.saveReply(lead, lastConfig, userInput);
-          }
           edge = testEdge;
         }
       }
