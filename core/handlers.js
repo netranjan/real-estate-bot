@@ -157,36 +157,41 @@ async function saveCollectReply(lead, config, userInput) {
   const { field, options } = config;
   if (!field) throw new Error('collect_input node missing "field" in config');
 
-  const input = String(userInput).trim();
+  const rawInput = String(userInput || '').trim();
+  // Some clients send the question text + answer; grab the last line as the real answer
+  const lastLine = rawInput.split(/\r?\n/).filter(l => l.trim()).pop() || '';
+  const candidates = [rawInput, lastLine];
 
   if (!options || !options.length) {
-    await repo.saveLeadAnswer(lead.lead_id, field, input, lead.current_node_id);
-    return { valid: true, outcome: 'free_text', field, value: input };
+    await repo.saveLeadAnswer(lead.lead_id, field, rawInput, lead.current_node_id);
+    return { valid: true, outcome: 'free_text', field, value: rawInput };
   }
 
-  const byValue = options.find(opt => {
-    const val = String(opt.value || opt).trim();
-    return val.toLowerCase() === input.toLowerCase();
-  });
-  if (byValue) {
-    const val = String(byValue.value || byValue).trim();
-    await repo.saveLeadAnswer(lead.lead_id, field, val, lead.current_node_id);
-    return { valid: true, outcome: 'option_picked', field, value: val };
-  }
+  for (const input of candidates) {
+    const byValue = options.find(opt => {
+      const val = String(opt.value || opt).trim();
+      return val.toLowerCase() === input.toLowerCase();
+    });
+    if (byValue) {
+      const val = String(byValue.value || byValue).trim();
+      await repo.saveLeadAnswer(lead.lead_id, field, val, lead.current_node_id);
+      return { valid: true, outcome: 'option_picked', field, value: val };
+    }
 
-  const byLabel = options.find(opt => {
-    const label = String(opt.label || opt.value || opt).trim();
-    return label.toLowerCase() === input.toLowerCase();
-  });
-  if (byLabel) {
-    const val = String(byLabel.value || byLabel.label || byLabel).trim();
-    await repo.saveLeadAnswer(lead.lead_id, field, val, lead.current_node_id);
-    return { valid: true, outcome: 'option_picked', field, value: val };
+    const byLabel = options.find(opt => {
+      const label = String(opt.label || opt.value || opt).trim();
+      return label.toLowerCase() === input.toLowerCase();
+    });
+    if (byLabel) {
+      const val = String(byLabel.value || byLabel.label || byLabel).trim();
+      await repo.saveLeadAnswer(lead.lead_id, field, val, lead.current_node_id);
+      return { valid: true, outcome: 'option_picked', field, value: val };
+    }
   }
 
   // Free text that didn't match any option
-  await repo.saveLeadAnswer(lead.lead_id, field, input, lead.current_node_id);
-  return { valid: true, outcome: 'free_text', field, value: input };
+  await repo.saveLeadAnswer(lead.lead_id, field, rawInput, lead.current_node_id);
+  return { valid: true, outcome: 'free_text', field, value: rawInput };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
