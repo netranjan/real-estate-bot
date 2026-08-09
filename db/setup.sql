@@ -267,7 +267,7 @@ INSERT INTO node_types (node_type_code, node_type_name, description, handler_nam
    '[{"id":"sent","label":"Message sent","default":true}]',
    '{"icon":"💬","color":"blue","label":"Message","fields":["text","source","media_items","property_asset_type"],"add_step_label":"💬 Message"}'),
 
-  ('show_list', 'Property List', 'Display matching properties from database', 'showList', true, false,
+  ('show_list', 'Property List', 'Display matching properties from database', 'showList', true, true,
    '[{"id":"selected","label":"User picks a property","default":true},{"id":"no_match","label":"Nothing matches their search"}]',
    '{"icon":"🏠","color":"green","label":"Property List","fields":["text","list_mode","match_dimensions","fallback_node_id","header","footer","button_text"],"add_step_label":"🏠 Property List"}'),
 
@@ -447,3 +447,4 @@ $$;
 CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
 
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS currency_symbol VARCHAR(5) DEFAULT '₹';
+
