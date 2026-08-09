@@ -284,7 +284,10 @@ async function selectPropertyForLead(leadId, propertyId, nodeId) {
   const lead = await db.getLeadById(leadId);
   if (!lead) throw new Error('Lead not found');
 
-  const context = lead.context_data || {};
+  let context = lead.context_data || {};
+  if (typeof context === 'string') {
+    try { context = JSON.parse(context); } catch (e) { context = {}; }
+  }
   const oldPropertyId = context.selected_property_id || null;
 
   if (oldPropertyId && oldPropertyId !== propertyId) {
