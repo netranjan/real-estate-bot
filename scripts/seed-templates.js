@@ -1,8 +1,23 @@
 const pool = require('../db/pool');
 
+// ═══════════════════════════════════════════════════════════════
+// ADVANCED SALES FLOW
+// 
+// Routing strategy:
+// • collect_input  → user_input_value per button (SELF_USE, INVESTMENT, etc.)
+// • show_list      → default edge (outcome: selected) + dynamic PROPERTY_ edges
+// • property_welcome → user_input_value per button (BROCHURE, VISIT, CALL)
+// • send_document  → default edge back to welcome
+// • book_appointment → default edge to end
+// • request_callback → default edge to end
+// 
+// Stale-button recovery: all interactive nodes bookmark themselves.
+// Clicking an old button rewinds to that node, re-saves the answer, and routes.
+// ═══════════════════════════════════════════════════════════════
+
 const FLOWS = [
   {
-    name: 'Standard Sales Flow',
+    name: 'Advanced Sales Flow',
     nodes: [
       {
         code: 'welcome',
@@ -35,13 +50,28 @@ const FLOWS = [
         }
       },
       {
+        code: 'budget',
+        type: 'collect_input',
+        name: 'Budget Range',
+        config: {
+          text: 'What is your approximate budget range?',
+          options: [
+            { label: 'Under ₹50 Lakh', value: 'UNDER_50L' },
+            { label: '₹50 Lakh - ₹1 Cr', value: '50L_TO_1CR' },
+            { label: '₹1 Cr - ₹1.5 Cr', value: '1CR_TO_1_5CR' },
+            { label: 'Above ₹1.5 Cr', value: 'ABOVE_1_5CR' }
+          ],
+          field: 'budget_range'
+        }
+      },
+      {
         code: 'list',
         type: 'show_list',
-        name: 'Properties',
+        name: 'Matching Properties',
         config: {
-          text: 'Here are matching properties:',
+          text: 'Here are the best properties matching your preference! Tap any property to view details.',
           filter_mode: 'filtered',
-          match_dimensions: ['configuration']
+          match_dimensions: ['configuration', 'budget_range']
         }
       },
       {
@@ -49,8 +79,6 @@ const FLOWS = [
         type: 'property_welcome',
         name: 'Property Details',
         config: {
-          // Main message comes from properties.welcome_message DB column
-          // suffix_text is appended after it
           suffix_text: 'Tap an option below to proceed:',
           buttons: [
             { title: '📄 Brochure', id: 'BROCHURE' },
@@ -62,7 +90,7 @@ const FLOWS = [
       {
         code: 'brochure',
         type: 'send_document',
-        name: 'Brochure',
+        name: 'Send Brochure',
         config: {
           text: 'Here is the brochure you requested.',
           source: 'property',
@@ -74,48 +102,64 @@ const FLOWS = [
         type: 'book_appointment',
         name: 'Book Visit',
         config: {
-          text: 'Let\'s schedule your site visit! 🏗️\n\nPlease pick a convenient slot.'
+          text: "Let\'s schedule your site visit! 🏗️\n\nPlease pick a convenient slot."
         }
       },
       {
         code: 'callback',
         type: 'request_callback',
-        name: 'Callback',
+        name: 'Request Callback',
         config: {
-          confirmation_message: 'Got it! Our sales representative will call you on this WhatsApp number within 15 minutes. 📞'
+          text: 'Our property expert will call you shortly.',
+          sla_minutes: 15,
+          confirmation_message: 'Got it! {{agent_name}} will call you on this WhatsApp number within 15 minutes. 📞\n\nThank you for reaching out!'
         }
       },
       {
         code: 'end',
         type: 'end_conversation',
-        name: 'End',
+        name: 'Goodbye',
         config: {
-          text: 'Thank you for reaching out!'
+          text: 'Thank you for your interest! Have a great day. 👋'
         }
       }
     ],
     edges: [
-      // Welcome → Configuration
-      { from: 'welcome', to: 'config', input: 'SELF_USE' },
-      { from: 'welcome', to: 'config', input: 'INVESTMENT' },
+      // ── Welcome → Configuration (per button) ──
+      { from: 'welcome', to: 'config', input: 'SELF_USE',   condition: { action: 'save_answer', field: 'requirement_type' } },
+      { from: 'welcome', to: 'config', input: 'INVESTMENT', condition: { action: 'save_answer', field: 'requirement_type' } },
 
-      // Configuration → Property List (default)
-      { from: 'config', to: 'list' },
+      // ── Configuration → Budget (per button) ──
+      { from: 'config', to: 'budget', input: '1BHK',   condition: { action: 'save_answer', field: 'configuration' } },
+      { from: 'config', to: 'budget', input: '2BHK',   condition: { action: 'save_answer', field: 'configuration' } },
+      { from: 'config', to: 'budget', input: '3BHK',   condition: { action: 'save_answer', field: 'configuration' } },
+      { from: 'config', to: 'budget', input: '4BHK',   condition: { action: 'save_answer', field: 'configuration' } },
+      { from: 'config', to: 'budget', input: '5BHK',   condition: { action: 'save_answer', field: 'configuration' } },
+      { from: 'config', to: 'budget', input: 'STUDIO', condition: { action: 'save_answer', field: 'configuration' } },
 
-      // Property List → Property Welcome (default fallback for any selection)
-      { from: 'list', to: 'prop_welcome' },
+      // ── Budget → Property List (per button) ──
+      { from: 'budget', to: 'list', input: 'UNDER_50L',    condition: { action: 'save_answer', field: 'budget_range' } },
+      { from: 'budget', to: 'list', input: '50L_TO_1CR',   condition: { action: 'save_answer', field: 'budget_range' } },
+      { from: 'budget', to: 'list', input: '1CR_TO_1_5CR', condition: { action: 'save_answer', field: 'budget_range' } },
+      { from: 'budget', to: 'list', input: 'ABOVE_1_5CR',  condition: { action: 'save_answer', field: 'budget_range' } },
 
-      // Property Welcome → Actions
+      // ── Property List → Property Welcome (default / outcome) ──
+      { from: 'list', to: 'prop_welcome', outcome: 'selected' },
+      { from: 'list', to: 'prop_welcome', outcome: 'no_match' },
+
+      // ── Property Welcome → Actions (per button) ──
       { from: 'prop_welcome', to: 'brochure', input: 'BROCHURE' },
-      { from: 'prop_welcome', to: 'visit', input: 'VISIT' },
+      { from: 'prop_welcome', to: 'visit',    input: 'VISIT' },
       { from: 'prop_welcome', to: 'callback', input: 'CALL' },
 
-      // Brochure → back to Property Welcome (user can pick another action)
-      { from: 'brochure', to: 'prop_welcome' },
+      // ── Brochure → back to Property Welcome ──
+      { from: 'brochure', to: 'prop_welcome', outcome: 'sent' },
+      { from: 'brochure', to: 'prop_welcome', outcome: 'not_found' },
 
-      // Visit / Callback → End
-      { from: 'visit', to: 'end' },
-      { from: 'callback', to: 'end' }
+      // ── Visit / Callback → End ──
+      { from: 'visit',    to: 'end', outcome: 'slot_picked' },
+      { from: 'visit',    to: 'end', outcome: 'no_slots' },
+      { from: 'callback', to: 'end', outcome: 'requested' }
     ]
   }
 ];
@@ -125,10 +169,16 @@ async function seed(clientId) {
   try {
     await client.query('BEGIN');
 
+    // Deactivate any existing flows for this client
+    await client.query(
+      `UPDATE conversation_flows SET is_active = FALSE WHERE client_id = $1`,
+      [clientId]
+    );
+
     for (const tpl of FLOWS) {
       const flowRes = await client.query(
         `INSERT INTO conversation_flows (client_id, flow_name, flow_version, is_active, start_node_id)
-         VALUES ($1, $2, 1, FALSE, NULL) RETURNING flow_id`,
+         VALUES ($1, $2, 1, TRUE, NULL) RETURNING flow_id`,
         [clientId, tpl.name]
       );
       const flowId = flowRes.rows[0].flow_id;
@@ -153,33 +203,48 @@ async function seed(clientId) {
 
       for (const e of tpl.edges) {
         await client.query(
-          `INSERT INTO flow_edges (flow_id, from_node_id, to_node_id, user_input_value, condition_logic, priority, active)
-           VALUES ($1, $2, $3, $4, '{}', 0, TRUE)`,
-          [flowId, nodeMap[e.from], nodeMap[e.to], e.input || null]
+          `INSERT INTO flow_edges (
+            flow_id, from_node_id, to_node_id,
+            user_input_value, outcome_name, condition_logic, priority, active
+          ) VALUES ($1, $2, $3, $4, $5, $6, 0, TRUE)`,
+          [
+            flowId,
+            nodeMap[e.from],
+            nodeMap[e.to],
+            e.input || null,
+            e.outcome || null,
+            JSON.stringify(e.condition || {})
+          ]
         );
       }
 
-      // Dynamic edges: list → prop_welcome for every property
+      // Dynamic edges: list → prop_welcome for every property (by PROPERTY_ID)
       if (nodeMap['list'] && nodeMap['prop_welcome']) {
         const props = await client.query(
-          `SELECT property_id FROM properties WHERE client_id=$1`,
+          `SELECT property_id FROM properties WHERE client_id=$1 AND active=TRUE`,
           [clientId]
         );
         for (const p of props.rows) {
           await client.query(
-            `INSERT INTO flow_edges (flow_id, from_node_id, to_node_id, user_input_value, condition_logic, priority, active)
-             VALUES ($1, $2, $3, $4, '{}', 0, TRUE)`,
+            `INSERT INTO flow_edges (
+              flow_id, from_node_id, to_node_id,
+              user_input_value, outcome_name, condition_logic, priority, active
+            ) VALUES ($1, $2, $3, $4, NULL, '{}', 0, TRUE)`,
             [flowId, nodeMap['list'], nodeMap['prop_welcome'], `PROPERTY_${p.property_id}`]
           );
         }
+        console.log(`🔗 Added ${props.rows.length} dynamic PROPERTY_ edges for flow "${tpl.name}"`);
       }
+
+      console.log(`✅ Seeded flow "${tpl.name}" (ID: ${flowId}) with ${tpl.nodes.length} nodes and ${tpl.edges.length} static edges`);
     }
 
     await client.query('COMMIT');
-    console.log(`✅ Seeded ${FLOWS.length} flow template(s) for client ${clientId}`);
+    console.log(`\n🎉 Seeded ${FLOWS.length} flow template(s) for client ${clientId}`);
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('❌ Seed failed:', err.message);
+    console.error(err.stack);
     process.exit(1);
   } finally {
     client.release();

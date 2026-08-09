@@ -242,7 +242,16 @@ async function showList(lead, config) {
   }];
 
   await wa.sendList(to, text || 'Here are matching properties:', button_text || 'View Options', sections, header, footer);
-  return { success: true, type: 'LIST_SENT', outcome: 'selected', item_count: items.length };
+  return { success: true, type: 'LIST_SENT', item_count: items.length, wait_for_input: true };
+}
+
+async function saveShowListReply(_lead, _config, userInput) {
+  if (!String(userInput).startsWith('PROPERTY_')) {
+    return { valid: false, error: 'Invalid selection' };
+  }
+  const propertyId = parseInt(userInput.replace('PROPERTY_', ''), 10);
+  if (isNaN(propertyId)) return { valid: false, error: 'Invalid property ID' };
+  return { valid: true, outcome: 'selected', value: userInput };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -352,7 +361,7 @@ async function bookAppointment(lead, config) {
     await wa.sendList(to, config.text || "Let's schedule your site visit! 🏗️\n\nPlease pick a convenient slot.", 'Select Slot', [
       { title: 'Available Slots', rows }
     ]);
-    return { success: true, type: 'SLOT_LIST_SENT', outcome: 'slot_picked', wait_for_input: true };
+    return { success: true, type: 'SLOT_LIST_SENT', wait_for_input: true };
   }
 
   // [PASS1] No slots = outcome, not hardcoded dead end
@@ -510,6 +519,7 @@ module.exports = {
   collectInput,
   saveCollectReply,
   showList,
+  saveShowListReply,
   propertyWelcome,
   sendDocument,
   bookAppointment,
