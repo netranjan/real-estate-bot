@@ -10,10 +10,10 @@ const leadService = require('../services/lead-service');
 // ── Stale button recovery map ──
 const STALE_INTENTS = {
   BROCHURE: 'send_document',
-  VISIT:    'book_appointment',
-  CALL:     'request_callback',
-  BUY:      'send_document',
-  RENT:     'request_callback',
+  VISIT: 'book_appointment',
+  CALL: 'request_callback',
+  BUY: 'send_document',
+  RENT: 'request_callback',
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -50,25 +50,26 @@ function extractMessageData(body) {
 // CONTEXT EXTRACTION (PROPERTY_ / VISIT_ prefixes)
 // ═══════════════════════════════════════════════════════════════════════════════
 
+function parseCtx(lead) {
+  let ctx = lead.context_data || {};
+  if (typeof ctx === 'string') {
+    try { ctx = JSON.parse(ctx); } catch (e) { ctx = {}; }
+  }
+  return ctx;
+}
+
 async function extractContextFromInput(lead, userInput) {
   if (!userInput || typeof userInput !== 'string') return;
 
   if (userInput.startsWith('PROPERTY_')) {
     const propertyId = parseInt(userInput.replace('PROPERTY_', ''), 10);
     if (!isNaN(propertyId)) {
-      const property = await repo.getPropertyById(propertyId);
-      if (property) {
-        await repo.saveLeadAnswer(lead.lead_id, 'selected_property_id', String(propertyId), lead.current_node_id);
-        const ctx = lead.context_data || {};
-        ctx.selected_property_id = propertyId;
-        ctx.selected_property_name = property.property_name;
-        await repo.updateLeadContext(lead.lead_id, ctx);
-      }
+      await flowService.selectPropertyForLead(lead.lead_id, propertyId, lead.current_node_id);
     }
   } else if (userInput.startsWith('VISIT_')) {
     const visitOptionId = parseInt(userInput.replace('VISIT_', ''), 10);
     if (!isNaN(visitOptionId)) {
-      const ctx = lead.context_data || {};
+      const ctx = parseCtx(lead);
       ctx.selected_visit_option_id = visitOptionId;
       await repo.updateLeadContext(lead.lead_id, ctx);
     }
@@ -162,7 +163,7 @@ async function runFlow(lead, startNode) {
       if (waits) {
         console.log(`⏸️ Node ${node.node_code} waiting for user input`);
         await repo.updateLeadNode(lead.lead_id, node.node_id);
-        
+
         // Bookmark this interactive node for stale button recovery
         let ctx = lead.context_data || {};
         if (typeof ctx === 'string') {
@@ -171,7 +172,7 @@ async function runFlow(lead, startNode) {
         ctx.last_interactive_node_id = node.node_id;
         await repo.updateLeadContext(lead.lead_id, ctx);
         console.log(`🔖 Bookmarked interactive node ${node.node_code} (${node.node_id})`);
-        
+
         break;
       }
       console.log(`🔚 No outgoing edge from ${node.node_code}, flow paused`);
