@@ -64,7 +64,14 @@ async function extractContextFromInput(lead, userInput) {
   if (userInput.startsWith('PROPERTY_')) {
     const propertyId = parseInt(userInput.replace('PROPERTY_', ''), 10);
     if (!isNaN(propertyId)) {
-      await flowService.selectPropertyForLead(lead.lead_id, propertyId, lead.current_node_id);
+      const property = await repo.getPropertyById(propertyId);
+      if (property) {
+        await repo.saveLeadAnswer(lead.lead_id, 'selected_property_id', String(propertyId), lead.current_node_id);
+        const ctx = parseCtx(lead);
+        ctx.selected_property_id = propertyId;
+        ctx.selected_property_name = property.property_name;
+        await repo.updateLeadContext(lead.lead_id, ctx);
+      }
     }
   } else if (userInput.startsWith('VISIT_')) {
     const visitOptionId = parseInt(userInput.replace('VISIT_', ''), 10);

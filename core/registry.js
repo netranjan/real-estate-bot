@@ -32,7 +32,9 @@ async function loadRegistry() {
     if (row.has_save_reply) {
       // Try common naming patterns: collectInput → saveCollectReply, bookAppointment → saveVisitReply
       let saveFnName = row.handler_name.replace(/Input$/, 'Reply');
-      if (!handlers[saveFnName]) {
+      // If the name didn't change (doesn't end with 'Input') OR the result is the execute handler itself,
+      // skip to the next pattern
+      if (saveFnName === row.handler_name || !handlers[saveFnName]) {
         saveFnName = `save${capitalize(row.handler_name)}Reply`;
       }
       if (!handlers[saveFnName]) {
@@ -40,6 +42,7 @@ async function loadRegistry() {
         const mapping = {
           collectInput: 'saveCollectReply',
           bookAppointment: 'saveVisitReply',
+          showList: 'saveShowListReply',
         };
         saveFnName = mapping[row.handler_name];
       }
