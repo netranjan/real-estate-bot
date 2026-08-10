@@ -290,7 +290,7 @@ async function propertyWelcome(lead, config) {
     await wa.sendText(to, messageText);
   }
 
-  return { success: true, type: 'PROPERTY_WELCOME_SENT', outcome: 'button_clicked', property_id: propertyId, property_name: property.property_name };
+  return { success: true, type: 'PROPERTY_WELCOME_SENT', wait_for_input: true, property_id: propertyId, property_name: property.property_name };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
