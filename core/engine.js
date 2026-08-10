@@ -194,6 +194,11 @@ async function runFlow(lead, startNode) {
 // ═══════════════════════════════════════════════════════════════════════════════
 async function processUserInput(lead, userInput) {
   const currentNode = await repo.getNodeById(lead.current_node_id);
+  console.log('🔧 DEBUG node:', currentNode?.node_code, 'type:', currentNode?.node_type);
+  console.log('🔧 DEBUG input:', userInput);
+  console.log('🔧 DEBUG context:', JSON.stringify(lead.context_data));
+  const handler = getHandler(currentNode.node_type);
+  console.log('🔧 DEBUG saveReply?', typeof handler.saveReply, handler.saveReply?.name || 'none');
   if (!currentNode) {
     console.error('❌ Lead has invalid current_node_id:', lead.current_node_id);
     return;
@@ -202,7 +207,6 @@ async function processUserInput(lead, userInput) {
   console.log(`📩 Input "${userInput}" at node ${currentNode.node_code} (type: ${currentNode.node_type})`);
   console.log(`🔍 Lead context_data:`, JSON.stringify(lead.context_data));
 
-  const handler = getHandler(currentNode.node_type);
   const resolvedConfig = await resolveConfig(currentNode.config, lead.lead_id);
 
   await extractContextFromInput(lead, userInput);
